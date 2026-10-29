@@ -1,11 +1,16 @@
 # Сборка и публикация сайта на GitHub Pages.
-# Запускается сама после каждой загрузки файлов в ветку main; вручную — вкладка Actions → «Сайт» → Run workflow.
+# Запускается сама после каждой загрузки файлов в ветку main и раз в сутки (обновить «Топ по просмотрам»);
+# вручную — вкладка Actions → «Сайт» → Run workflow.
 # Сайт собирается из data/*.json генератором tools/build_static.py; готовые страницы в репозитории не хранятся.
+# Счётчик посещений: переменная репозитория GOATCOUNTER_CODE и секрет GOATCOUNTER_TOKEN
+# (Settings → Secrets and variables → Actions). Без них сайт собирается без счётчика и топа.
 name: Сайт
 
 on:
   push:
     branches: [main]
+  schedule:
+    - cron: '17 3 * * *'
   workflow_dispatch:
 
 permissions:
@@ -20,11 +25,16 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      GOATCOUNTER_CODE: ${{ vars.GOATCOUNTER_CODE }}
+      GOATCOUNTER_TOKEN: ${{ secrets.GOATCOUNTER_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
+      - name: Статистика просмотров
+        run: python tools/fetch_top.py
       - name: Сборка страниц
         run: |
           OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
