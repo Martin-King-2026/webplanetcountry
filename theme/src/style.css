@@ -154,8 +154,17 @@ ol.toplist li{padding:4px 0}
 .wx .dn{padding:2px 10px;border-radius:999px;background:var(--sf);font-size:.85rem}
 .wx .srcnote{flex-basis:100%}
 
-/* Виджеты, оставшиеся от прежней темы блога, не показываются */
-.extras{display:none!important}
+/* Обязательные виджеты Blogger и оставшиеся от прежней темы не показываются */
+.extras,#navbar,#navbar-iframe,.navbar{display:none!important}
+/* Blogger подключает классическим темам стили своих виджетов (поля секций, отступы списков) — возвращаем наши */
+.section{margin:0}
+.section .widget{margin:0;line-height:inherit}
+.section .widget ul,.section .widget ol{margin:0;padding:0;line-height:inherit}
+.section .widget li{margin:0;padding:0}
+.section .plist li{padding:9px 0}
+.section ol.toplist{padding-left:1.6em}
+.section ol.toplist li{padding:4px 0}
+.section .az-g>ul li{padding:3px 0}
 
 /* Карта под спойлером */
 .wp-map{margin:0 0 18px;border:1px solid var(--bd);border-radius:var(--r-sm);background:var(--sf);overflow:hidden}
