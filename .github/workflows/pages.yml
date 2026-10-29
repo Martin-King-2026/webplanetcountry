@@ -1,0 +1,46 @@
+# Сборка и публикация сайта на GitHub Pages.
+# Запускается сама после каждой загрузки файлов в ветку main; вручную — вкладка Actions → «Сайт» → Run workflow.
+# Сайт собирается из data/*.json генератором tools/build_static.py; готовые страницы в репозитории не хранятся.
+name: Сайт
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Сборка страниц
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          REPO="${{ github.event.repository.name }}"
+          if [ "$(echo "$REPO" | tr '[:upper:]' '[:lower:]')" = "$OWNER.github.io" ]; then P=/; else P=/$REPO/; fi
+          python tools/build_static.py --out site --prefix "$P" --site-url "https://$OWNER.github.io$P"
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
