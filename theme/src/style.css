@@ -1,7 +1,7 @@
 /* Веб-камеры планеты — стили темы. Палитра «Эфир»: фон, карточки, текст, основной, акцент. */
 :root{
   --bg:#F3F5F9;--sf:#FFFFFF;--sf2:#EAEEF6;--tx:#121826;--mu:#5A6375;--bd:#DDE2EC;
-  --pr:#4353FF;--pr-tx:#FFFFFF;--ac:#E8384F;--ac-tx:#FFFFFF;
+  --pr:#4353FF;--pr-tx:#FFFFFF;--ac:#E8384F;--ac-tx:#FFFFFF;--on:#16A34A;--on-glow:rgba(22,163,74,.2);
   --r:14px;--r-sm:9px;--side:264px;
   --font:'Golos Text',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
   color-scheme:light;
@@ -9,12 +9,12 @@
 @media (prefers-color-scheme:dark){
   :root:not([data-theme=light]){
     --bg:#0B0F18;--sf:#151B27;--sf2:#1C2433;--tx:#E6E9F2;--mu:#98A0B3;--bd:#263045;
-    --pr:#8C98FF;--pr-tx:#0B0F18;--ac:#FF5C70;--ac-tx:#0B0F18;color-scheme:dark;
+    --pr:#8C98FF;--pr-tx:#0B0F18;--ac:#FF5C70;--ac-tx:#0B0F18;--on:#34D399;--on-glow:rgba(52,211,153,.22);color-scheme:dark;
   }
 }
 :root[data-theme=dark]{
   --bg:#0B0F18;--sf:#151B27;--sf2:#1C2433;--tx:#E6E9F2;--mu:#98A0B3;--bd:#263045;
-  --pr:#8C98FF;--pr-tx:#0B0F18;--ac:#FF5C70;--ac-tx:#0B0F18;color-scheme:dark;
+  --pr:#8C98FF;--pr-tx:#0B0F18;--ac:#FF5C70;--ac-tx:#0B0F18;--on:#34D399;--on-glow:rgba(52,211,153,.22);color-scheme:dark;
 }
 
 *,*::before,*::after{box-sizing:border-box}
@@ -40,7 +40,7 @@ html:not([data-lang=en]) .en{display:none!important}
 .side-top{display:flex;align-items:center;gap:8px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:1.08rem;line-height:1.2;color:var(--tx);flex:1;min-width:0}
 .brand:hover{text-decoration:none}
-.brand .dot{flex:none;width:12px;height:12px;border-radius:50%;background:var(--ac);box-shadow:0 0 0 4px rgba(232,56,79,.18);animation:blink 1.8s infinite}
+.brand .dot{flex:none;width:12px;height:12px;border-radius:50%;background:var(--on);box-shadow:0 0 0 4px var(--on-glow);animation:blink 1.8s infinite}
 .side .burger{display:none}
 .side-body{margin-top:14px;display:flex;flex-direction:column;gap:12px}
 .menu-nav{display:flex;flex-direction:column;gap:2px}

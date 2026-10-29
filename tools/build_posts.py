@@ -20,6 +20,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
 BLOG_ID = "7135594099619710266"
 BLOG_URL = "https://webplanetcountry.blogspot.com"
+SITE_URL = "https://martin-king-2026.github.io/webplanetcountry/"  # основной сайт на GitHub Pages
 
 CONTINENTS = {"AF": ("Африка", "Africa"), "AS": ("Азия", "Asia"), "EU": ("Европа", "Europe"),
               "NA": ("Северная Америка", "North America"), "OC": ("Океания", "Oceania"),
@@ -556,6 +557,8 @@ def main():
     ap.add_argument("--preview-sample", type=int, default=40, help="сколько городов без камер положить в предпросмотр")
     ap.add_argument("--no-sights", action="store_true", help="не вписывать фото достопримечательностей в посты городов с камерами")
     ap.add_argument("--sights-limit", type=int, default=200, help="скольким городам с камерами вписать фото заранее")
+    ap.add_argument("--site-url", default=SITE_URL,
+                    help="основной сайт: на его страницы ведут ссылки из служебных черновиков (пусто — на посты Blogger)")
     args = ap.parse_args()
     y, m = map(int, args.prefix.strip("/").split("/"))
     start = datetime(y, m, 1, tzinfo=timezone.utc)
@@ -591,9 +594,15 @@ def main():
     if priv.exists():
         shutil.rmtree(priv)
     priv.mkdir()
-    for i in range(0, len(private), args.batch):
-        write_feed(priv / f"{i // args.batch + 1:02d}-sluzhebnye-kamery-chernoviki.xml", private[i:i + args.batch],
-                   args.format, args.prefix, start)
+    if args.site_url:
+        # Страны и города теперь на основном сайте: хлебные крошки черновиков ведут туда, а не на посты Blogger
+        main_site = Site(args.site_url, with_sights=False)
+        drafts = [main_site.cam_post(x) for x in sorted(main_site.private, key=lambda c: (c["city"]["slug"], ru_key(c["ru"])))]
+        for d, p in zip(drafts, private):
+            d["n"] = p["n"]
+        private = drafts
+    # Одним файлом: у Blogger ограничено число импортов в сутки, а черновики под лимит публикаций не попадают
+    write_feed(priv / "sluzhebnye-kamery-chernoviki.xml", private, args.format, args.prefix, start)
 
     # Подборка для локального предпросмотра
     prev = ROOT / "build" / "preview"

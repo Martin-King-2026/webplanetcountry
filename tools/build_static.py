@@ -11,7 +11,9 @@ import argparse
 import hashlib
 import html
 import json
+import os
 import pathlib
+import re
 import shutil
 import sys
 
@@ -45,7 +47,9 @@ PAGE = """<!DOCTYPE html>
 <main class="main"><div class="main-sec section" id="main">{main}</div></main></div>
 <footer class="foot"><span class="ru">© Веб-камеры планеты. Тексты — Википедия и Викигид (CC BY-SA), погода — Open-Meteo, карты — OpenStreetMap. Трансляции принадлежат их владельцам и встроены с их платформ.</span><span class="en">© Webcams of the Planet. Texts: Wikipedia and Wikivoyage (CC BY-SA), weather: Open-Meteo, maps: OpenStreetMap. Streams belong to their owners and are embedded from their platforms.</span></footer>
 <script>window.WP_CONFIG = {{ windyKey: '', static: true, base: '{p}' }};</script>
-<script src="{p}assets/app.js?v={v}"></script></body></html>"""
+<script src="{p}assets/app.js?v={v}"></script>{counter}</body></html>"""
+# Счётчик посещений GoatCounter: без cookie, поэтому баннер согласия не нужен
+COUNTER = '\n<script data-goatcounter="https://{code}.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>'
 
 
 def describe(post):
@@ -67,7 +71,11 @@ def main():
     ap.add_argument("--out", default=str(ROOT / "build" / "static"))
     ap.add_argument("--prefix", default="/", help="путь сайта: / для логин.github.io, /имя-репозитория/ для остальных")
     ap.add_argument("--site-url", default="", help="полный адрес сайта для карты сайта, например https://логин.github.io/")
+    ap.add_argument("--goatcounter", default=os.environ.get("GOATCOUNTER_CODE", ""),
+                    help="код сайта в GoatCounter (код.goatcounter.com) — включает счётчик посещений")
     args = ap.parse_args()
+    code = args.goatcounter.strip().lower()
+    counter = COUNTER.format(code=code) if re.fullmatch(r"[a-z0-9-]+", code) else ""
     p = args.prefix if args.prefix.endswith("/") else args.prefix + "/"
     base = (args.site_url or p).rstrip("/") + "/"
     out = pathlib.Path(args.out)
@@ -88,7 +96,7 @@ def main():
 
     def write(name, title, main, desc, url):
         (out / name).write_text(PAGE.format(title=html.escape(title), desc=html.escape(desc), url=url, p=p, v=v,
-                                            menu=menu, main=main), encoding="utf-8")
+                                            menu=menu, main=main, counter=counter), encoding="utf-8")
 
     urls = [base]
     for post in posts:
@@ -124,6 +132,20 @@ def main():
     with_thumb = [x for x in cam_posts if 'data-type="yt"' in x["content"]]
     save("cam", [entry(x, x["content"][x["content"].find('<ol class="wp-src">'):x["content"].find("</ol>") + 5])
                  for x in with_thumb[-12:][::-1]])
+
+    # Топ по просмотрам: data/top.json готовит tools/fetch_top.py из счётчика GoatCounter (в сборке на GitHub)
+    top_f = ROOT / "data" / "top.json"
+    if top_f.exists():
+        by_slug = {x["slug"]: x for x in posts if {"cam", "city", "country"} & set(x["labels"])}
+        top = json.loads(top_f.read_text(encoding="utf-8"))
+        for period in ("week", "all"):
+            items, seen = [], set()
+            for hit in top.get(period, []):
+                slug = hit["path"].split("?")[0].rstrip("/").rsplit("/", 1)[-1].removesuffix(".html")
+                if slug in by_slug and slug not in seen:
+                    seen.add(slug)
+                    items.append(entry(by_slug[slug], ""))
+            save(f"top-{period}", items[:10])
 
     # Карта сайта и robots.txt для поисковиков
     sm = ["<?xml version='1.0' encoding='UTF-8'?>", "<urlset xmlns='http://www.sitemaps.org/schemas/sitemap/0.9'>"]

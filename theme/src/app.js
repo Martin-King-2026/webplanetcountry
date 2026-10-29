@@ -111,7 +111,7 @@
       homeLead: 'Прямые трансляции с веб-камер городов мира. Выберите страну, город или найдите камеру через поиск.',
       statC: 'стран: {n}', statK: 'камер: {n}', camsN: 'камер: {n}', theme: 'Светлая или тёмная тема', lang: 'Switch to English',
       windy: 'Камеры Windy.com поблизости', notFound: 'Страница не найдена', wxSrc: 'Погода: Open-Meteo.com',
-      menu: 'Меню', noTop: 'Статистика просмотров появится, когда у блога накопятся посещения.', empty: 'Список пуст.',
+      menu: 'Меню', noTop: 'Статистика просмотров появится, когда у сайта накопятся посещения: топ обновляется раз в сутки.', empty: 'Список пуст.',
       onSource: 'Смотреть на сайте владельца камеры ↗',
       mapCities: 'Карта городов с камерами', mapCams: 'Карта камер', mapFail: 'Карта сейчас не загружается. Попробуйте позже.',
       mapEmpty: 'Пока нечего показать на карте.', approx: 'место примерное: у камеры нет точных координат',
@@ -135,7 +135,7 @@
       homeLead: 'Live streams from webcams in cities around the world. Pick a country or city, or search for a webcam.',
       statC: 'countries: {n}', statK: 'webcams: {n}', camsN: 'webcams: {n}', theme: 'Light or dark theme', lang: 'Переключить на русский',
       windy: 'Windy.com webcams nearby', notFound: 'Page not found', wxSrc: 'Weather: Open-Meteo.com',
-      menu: 'Menu', noTop: 'View statistics will appear once the blog gets some visits.', empty: 'The list is empty.',
+      menu: 'Menu', noTop: 'View statistics will appear once the site gets some visits; the list is updated daily.', empty: 'The list is empty.',
       onSource: 'Watch on the camera owner’s site ↗',
       mapCities: 'Map of cities with webcams', mapCams: 'Map of webcams', mapFail: 'The map is not loading right now. Please try later.',
       mapEmpty: 'Nothing to show on the map yet.', approx: 'approximate location: no exact coordinates for this webcam',
@@ -1064,6 +1064,13 @@
     });
     return out;
   }
+  // [топ за неделю, топ за всё время]: в Blogger — из его виджетов «Популярные сообщения»,
+  // на статичном сайте — из лент top-week/top-all, которые сборка делает по счётчику GoatCounter
+  function topLists() {
+    if (!CFG.static) return Promise.resolve([popularLinks('#PopularPosts1'), popularLinks('#PopularPosts2')]);
+    function get(label) { return feed(label, 10).catch(function () { return []; }); }
+    return Promise.all([get('top-week'), get('top-all')]);
+  }
   function topList(items) {
     var ol = h('ol', { class: 'toplist' });
     function draw() {
@@ -1076,7 +1083,10 @@
   var PAGES = {
     home: function (wp) {
       var stats = h('div', { class: 'stats' });
-      var pop = popularLinks('#PopularPosts2').slice(0, 10);
+      var pop = h('div');
+      topLists().then(function (r) {
+        if (r[1].length) pop.replaceChildren(h('h2', { 'data-i18n': 'popular' }, t('popular')), topList(r[1].slice(0, 10)));
+      });
       var fresh = h('div', {}, h('p', { class: 'ld' }, t('loading')));
       var search = $('.side .search');
       // add() пропускает null и раскрывает массивы; replaceChildren превратил бы их в текст «null» и «[object …]»
@@ -1085,8 +1095,7 @@
         h('h1', { 'data-i18n': 'site' }, t('site')),
         h('p', { class: 'lead', 'data-i18n': 'homeLead' }, t('homeLead')),
         search ? h('div', { class: 'search', style: 'max-width:560px;margin:14px 0', html: search.innerHTML.replace(/id="[^"]*"/g, '') }) : null,
-        stats,
-        pop.length ? [h('h2', { 'data-i18n': 'popular' }, t('popular')), topList(pop)] : null,
+        stats, pop,
         h('h2', { 'data-i18n': 'newCams' }, t('newCams')), fresh]);
       $$('.search input', wp).forEach(initSearch);
       loadIndex().then(function (idx) {
@@ -1137,12 +1146,14 @@
       });
     },
     top: function (wp, body) {
-      var week = popularLinks('#PopularPosts1'), all = popularLinks('#PopularPosts2');
       var box = h('div');
-      if (!week.length && !all.length) box.append(h('p', { class: 'stub', 'data-i18n': 'noTop' }, t('noTop')));
-      if (week.length) box.append(h('h2', { 'data-i18n': 'weekTop' }, t('weekTop')), topList(week));
-      if (all.length) box.append(h('h2', { 'data-i18n': 'allTop' }, t('allTop')), topList(all));
       wp.after(box);
+      topLists().then(function (r) {
+        var week = r[0], all = r[1];
+        if (!week.length && !all.length) box.append(h('p', { class: 'stub', 'data-i18n': 'noTop' }, t('noTop')));
+        if (week.length) box.append(h('h2', { 'data-i18n': 'weekTop' }, t('weekTop')), topList(week));
+        if (all.length) box.append(h('h2', { 'data-i18n': 'allTop' }, t('allTop')), topList(all));
+      });
     },
     country: function (wp, body) {
       var d = wp.dataset, ul = $('ul.az', body);
