@@ -114,7 +114,10 @@ def main():
 
     # Ленты: индекс (страны и все камеры), новые камеры, камеры каждого города. Формат — как у feed() в скрипте темы
     def entry(post, body=None):
-        return {"title": post["title"], "href": f'{p}{post["slug"]}.html', "html": post["content"] if body is None else body}
+        e = {"title": post["title"], "href": f'{p}{post["slug"]}.html', "html": post["content"] if body is None else body}
+        if post.get("kind"):
+            e["kind"] = post["kind"]  # группа камеры: общие виды, улицы, помещения
+        return e
 
     def save(label, entries):
         (out / "feeds" / f"{label}.json").write_text(json.dumps({"entries": entries}, ensure_ascii=False, separators=(",", ":")),

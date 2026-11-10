@@ -116,6 +116,9 @@
       mapCities: 'Карта городов с камерами', mapCams: 'Карта камер', mapFail: 'Карта сейчас не загружается. Попробуйте позже.',
       mapEmpty: 'Пока нечего показать на карте.', approx: 'место примерное: у камеры нет точных координат',
       approxMany: 'Ещё {n} камер без точных координат — в списке ниже ↓',
+      k_all: 'Все', k_view: 'Общие виды', k_street: 'Улицы', k_indoor: 'Помещения',
+      countryMap: 'Карта страны', countryMapNote: 'Крупные точки — города с веб-камерами, мелкие — остальные города. Нажмите на точку, чтобы открыть страницу города.',
+      street: 'Панорама улиц', streetNote: 'Панорама: Google Street View, с точки в центре города. Её можно поворачивать и идти по улицам. Если снимков рядом с центром нет, окно будет пустым.',
       searchHint: 'Введите в поиске слева хотя бы две буквы названия страны, города или камеры.',
       nothingFound: 'По запросу «{q}» ничего не найдено.'
     },
@@ -140,6 +143,9 @@
       mapCities: 'Map of cities with webcams', mapCams: 'Map of webcams', mapFail: 'The map is not loading right now. Please try later.',
       mapEmpty: 'Nothing to show on the map yet.', approx: 'approximate location: no exact coordinates for this webcam',
       approxMany: '{n} more webcams without exact coordinates — see the list below ↓',
+      k_all: 'All', k_view: 'General views', k_street: 'Streets', k_indoor: 'Indoors',
+      countryMap: 'Map of the country', countryMapNote: 'Large dots are cities with webcams, small dots are other cities. Click a dot to open the city page.',
+      street: 'Street View', streetNote: 'Panorama: Google Street View from a point in the city centre. You can turn around and walk the streets. If there is no imagery near the centre, the window stays empty.',
       searchHint: 'Type at least two letters of a country, city or webcam name in the search box on the left.',
       nothingFound: 'Nothing found for “{q}”.'
     }
@@ -213,7 +219,7 @@
     var d = a.dataset, ru = (a.getAttribute('data-ru') || a.textContent).trim();
     return {
       ru: ru, en: d.en || ru, href: a.getAttribute('href'), cc: d.cc, iso: d.iso, n: d.n ? +d.n : null,
-      yt: d.yt, rt: d.rt, lat: d.lat ? +d.lat : null, lon: d.lon ? +d.lon : null,
+      yt: d.yt, rt: d.rt, lat: d.lat ? +d.lat : null, lon: d.lon ? +d.lon : null, kind: d.g || null,
       sub: d.c ? split2(d.c) : (d.k ? split2(d.k) : null), country: d.k ? split2(d.k) : null, cityHref: d.ch
     };
   }
@@ -291,18 +297,37 @@
   }
   function cardsGrid(items) { return h('div', { class: 'cards' }, items.map(card)); }
 
+  // Группы камер: общие виды, улицы, помещения (их проставляет сборка по названию камеры)
+  var KINDS = ['view', 'street', 'indoor'];
   function azList(host, items, opt) {
     opt = opt || {};
-    var q = '';
+    var q = '', kind = '';
     var wrap = h('div', { class: 'az-wrap' });
     var filter = items.length > 24 ? h('input', {
       type: 'search', class: 'az-filter', placeholder: t('filter'), 'data-i18n-ph': 'filter',
       oninput: function (e) { q = e.target.value; body(); }
     }) : null;
+    var kinds = h('div', { class: 'kinds', role: 'group' });
     var bar = h('div', { class: 'az-bar' });
     var list = h('div');
-    add(wrap, [filter, bar, list]);
+    add(wrap, [kinds, filter, bar, list]);
     host.replaceChildren(wrap);
+
+    // Кнопки «Все · Общие виды · Улицы · Помещения» с числом камер; если группа одна — кнопок нет
+    function kindsBar() {
+      var n = { '': items.length };
+      items.forEach(function (it) { if (it.kind) n[it.kind] = (n[it.kind] || 0) + 1; });
+      var present = KINDS.filter(function (k) { return n[k]; });
+      kinds.hidden = !opt.cards || present.length < 2;
+      if (kinds.hidden) { kind = ''; return; }
+      kinds.replaceChildren();
+      [''].concat(present).forEach(function (k) {
+        kinds.append(h('button', {
+          type: 'button', class: k === kind ? 'on' : '', 'aria-pressed': k === kind ? 'true' : 'false',
+          onclick: function () { kind = k; body(); }
+        }, t(k ? 'k_' + k : 'k_all'), h('small', {}, String(n[k]))));
+      });
+    }
 
     function li(it) {
       return h('li', {},
@@ -312,8 +337,11 @@
         it.n ? h('small', {}, ' · ' + t('camsN', { n: it.n })) : null);
     }
     function body() {
+      kindsBar();
       var coll = new Intl.Collator(lang), qq = norm(q);
-      var sorted = items.filter(function (it) { return !qq || norm(it.ru).indexOf(qq) >= 0 || norm(it.en).indexOf(qq) >= 0; })
+      var sorted = items.filter(function (it) {
+        return (!kind || it.kind === kind) && (!qq || norm(it.ru).indexOf(qq) >= 0 || norm(it.en).indexOf(qq) >= 0);
+      })
         .sort(function (a, b) { return coll.compare(nm(a), nm(b)); });
       var groups = {}, order = [];
       sorted.forEach(function (it) {
@@ -683,7 +711,8 @@
     feed(label, 150).catch(function () { return []; }).then(function (es) {
       var items = es.filter(function (e) { return pathOf(e.href) !== here; }).map(function (e) {
         var n = camTitle(e.title);
-        return { ru: n.ru, en: n.en, href: e.href, yt: ytFromHtml(e.html), rt: rtFromHtml(e.html) };
+        return { ru: n.ru, en: n.en, href: e.href, yt: ytFromHtml(e.html), rt: rtFromHtml(e.html),
+          kind: e.kind || (/data-kind="(\w+)"/.exec(e.html) || [])[1] || null };
       });
       if (items.length) { azList(el, items, { cards: true }); return; }
       if (opt.hideEmpty) { el.replaceChildren(); var hd = el.previousElementSibling; if (hd && hd.tagName === 'H2') hd.hidden = true; return; }
@@ -691,6 +720,31 @@
       el.replaceChildren(box);
       nearestInto(box, lat, lon, [here]);
     });
+  }
+
+  // ---------- панорама улиц (Google Street View) ----------
+  // Открывается с точки в центре города: data-sv="широта,долгота,направление" (точки из data/streetview.json),
+  // иначе — координаты города. Встраивание без ключа; iframe грузится, только когда до него докрутили.
+  function streetBlock(before, lat, lon, sv) {
+    if (!before || isNaN(lat)) return;
+    var p = String(sv || '').split(',').map(Number);
+    if (p.length < 2 || isNaN(p[0])) p = [lat, lon, 0];
+    // Панорама подгружается, только когда блок близко к экрану (своя проверка: loading=lazy
+    // в некоторых браузерах так и не загружает вставленный скриптом iframe)
+    var frame = h('iframe', { allowfullscreen: true, referrerpolicy: 'no-referrer-when-downgrade', title: t('street') });
+    var box = h('div', { class: 'sv' }, frame), seen = false;
+    function src() {
+      if (seen) frame.src = 'https://www.google.com/maps?layer=c&cbll=' + p[0] + ',' + p[1] + '&cbp=11,' + (p[2] || 0) + ',0,0,-10&hl=' + lang + '&output=svembed';
+    }
+    function show() { if (!seen) { seen = true; src(); } }
+    langHooks.push(src);
+    before.before(h('h2', { 'data-i18n': 'street' }, t('street')), box,
+      h('p', { class: 'srcnote', 'data-i18n': 'streetNote' }, t('streetNote')));
+    if (!('IntersectionObserver' in window)) return show();
+    var io = new IntersectionObserver(function (e) {
+      if (e.some(function (x) { return x.isIntersecting; })) { io.disconnect(); show(); }
+    }, { rootMargin: '300px' });
+    io.observe(box);
   }
 
   // ---------- карты (Leaflet и подложка грузятся только при первом открытии блока) ----------
@@ -742,28 +796,53 @@
       }).catch(function () { started = false; leafletP = null; msg(h('p', { class: 'stub' }, t('mapFail'))); });
     });
   }
-  // Страна: города с камерами — из поста (координаты в строках списка) и из индекса (города новых камер)
-  function countryPoints(fromPost, cc) {
-    return function () {
-      return loadIndex().then(function (idx) {
-        var byPath = {}, out = [];
-        fromPost.forEach(function (c) { var p = Object.assign({}, c); byPath[pathOf(c.href)] = p; out.push(p); });
-        var groups = {};
-        idx.cams.forEach(function (c) {
-          if (c.iso !== cc || !c.cityHref || c.lat == null) return;
-          var k = pathOf(c.cityHref);
-          (groups[k] = groups[k] || []).push(c);
+  // Карта страны: все её города. Города без камер скрыты в посте HTML-комментариями — читаем и их.
+  // Leaflet грузится, когда карта показалась на экране; точки рисуются на canvas — их могут быть тысячи.
+  function countryMap(before, ul, cc) {
+    var pts = [];
+    function take(a) { var it = itemFromA(a); if (it.lat != null) pts.push(it); }
+    $$(':scope > li > a', ul).forEach(take);
+    Array.prototype.forEach.call(ul.childNodes, function (n) {
+      if (n.nodeType !== 8 || n.data.indexOf('<a ') < 0) return;
+      var a = new DOMParser().parseFromString(n.data, 'text/html').querySelector('a[data-lat]');
+      if (a) take(a);
+    });
+    if (!pts.length) return;
+    // под спойлером, как остальные карты: Leaflet и точки грузятся только при первом открытии
+    var box = h('div', { class: 'map-box country-map' });
+    var det = h('details', { class: 'wp-map' },
+      h('summary', {}, h('span', { class: 'ic', html: ICON.map }), h('span', { 'data-i18n': 'countryMap' }, t('countryMap'))),
+      box, h('p', { class: 'srcnote map-note', 'data-i18n': 'countryMapNote' }, t('countryMapNote')));
+    before.before(det);
+    function draw() {
+      loadLeaflet().then(function () {
+        return loadIndex().then(function (idx) {  // города, где камеры появились после сборки постов
+          var n = {};
+          idx.cams.forEach(function (c) { if (c.iso === cc && c.cityHref) n[pathOf(c.cityHref)] = (n[pathOf(c.cityHref)] || 0) + 1; });
+          pts.forEach(function (p) { p.n = Math.max(p.n || 0, n[pathOf(p.href)] || 0); });
+        }, function () {});
+      }).then(function () {
+        var map = L.map(box, { scrollWheelZoom: false, preferCanvas: true, worldCopyJump: true });
+        L.tileLayer(CFG.tiles, { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
+        var color = getComputedStyle(R).getPropertyValue('--pr').trim() || '#4353FF';
+        var mu = getComputedStyle(R).getPropertyValue('--mu').trim() || '#5A6375';
+        pts.sort(function (a, b) { return (a.n || 0) - (b.n || 0); }).forEach(function (p) {
+          L.circleMarker([p.lat, p.lon], p.n
+            ? { radius: Math.min(10, 4 + Math.sqrt(p.n)), color: '#fff', weight: 1, fillColor: color, fillOpacity: 0.9 }
+            : { radius: 3, stroke: false, fillColor: mu, fillOpacity: 0.55 })
+            .addTo(map)
+            .bindTooltip(nm(p) + (p.n ? ' · ' + t('camsN', { n: p.n }) : ''), { direction: 'top' })
+            .on('click', function () { location.href = p.href; });
         });
-        Object.keys(groups).forEach(function (k) {
-          var g = groups[k], p = byPath[k];
-          if (p) { p.n = Math.max(p.n || 0, g.length); return; }
-          out.push({ ru: g[0].sub.ru, en: g[0].sub.en, href: g[0].cityHref, n: g.length,
-            lat: g.reduce(function (s, c) { return s + c.lat; }, 0) / g.length,
-            lon: g.reduce(function (s, c) { return s + c.lon; }, 0) / g.length });
-        });
-        return out;
-      });
-    };
+        map.fitBounds(pts.map(function (p) { return [p.lat, p.lon]; }), { padding: [20, 20], maxZoom: 9 });
+        map.once('click', function () { map.scrollWheelZoom.enable(); });
+      }).catch(function () { box.classList.add('msg'); box.replaceChildren(h('p', { class: 'stub' }, t('mapFail'))); });
+    }
+    det.addEventListener('toggle', function once() {
+      if (!det.open) return;
+      det.removeEventListener('toggle', once);
+      draw();
+    });
   }
   // Город: камеры из индекса. У камер без своих координат стоит центр города: если их немного, раскладываем
   // их колечком вокруг центра, если много — одна метка «ещё N камер», иначе круг из точек расползается на море и окраины
@@ -1158,8 +1237,7 @@
     country: function (wp, body) {
       var d = wp.dataset, ul = $('ul.az', body);
       descBlock(body, { qid: d.qid });
-      var geo = ul ? $$(':scope > li > a[data-lat]', ul).map(itemFromA) : [];
-      if (geo.length) mapBlock(ul, 'mapCities', countryPoints(geo, d.cc));
+      if (ul) countryMap(ul, ul, d.cc);  // на месте прежней карты: под «Города с веб-камерами», над списком
       var list = azFromPost(ul, {
         empty: function () {
           var box = h('div', {}, h('p', { class: 'stub', 'data-i18n': 'noCams' }, t('noCams')));
@@ -1177,6 +1255,8 @@
       descBlock(body, { qid: d.qid, wen: d.wen, gid: d.gid });
       var camsEl = $('.wp-cams', body);
       if (camsEl) camsEl.id = 'cams';  // сюда ведёт метка «ещё N камер» на карте
+      // панорама — перед заголовком «Веб-камеры»
+      streetBlock(camsEl && camsEl.previousElementSibling && camsEl.previousElementSibling.tagName === 'H2' ? camsEl.previousElementSibling : camsEl, lat, lon, d.sv);
       if (+d.n) mapBlock(camsEl, 'mapCams', cityPoints(lat, lon));  // data-n — камер в городе при сборке
       camsBlock($('.wp-cams', body), d.slug, lat, lon);
       itemTools('city');

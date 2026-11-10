@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Конструктор камеры — Веб-камеры планеты</title>
+<style>
+:root{--bg:#F3F5F9;--sf:#fff;--tx:#121826;--mu:#5A6375;--bd:#DDE2EC;--pr:#4353FF;--ac:#E8384F;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#0B0F18;--sf:#151B27;--tx:#E6E9F2;--mu:#98A0B3;--bd:#263045;--pr:#8C98FF;--ac:#FF5C70}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,'Segoe UI',Roboto,Arial,sans-serif}
+main{max-width:980px;margin:0 auto;padding:20px 16px 60px}
+h1{margin:0 0 4px;font-size:1.6rem}
+h2{font-size:1.1rem;margin:22px 0 8px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:12px;padding:16px;margin:12px 0}
+label{display:block;font-size:.85rem;color:var(--mu);margin:8px 0 3px}
+input,select,textarea{width:100%;padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit}
+textarea{min-height:110px;font:12px/1.45 ui-monospace,Consolas,monospace}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.src{display:grid;grid-template-columns:110px minmax(0,2fr) minmax(0,1fr) 90px 34px;gap:6px;margin:6px 0;align-items:center}
+@media (max-width:640px){.src{grid-template-columns:1fr 1fr}}
+button{padding:8px 14px;border:1px solid var(--bd);border-radius:8px;background:var(--sf);color:var(--tx);font:inherit;cursor:pointer}
+button:hover{border-color:var(--pr)}
+button.pri{background:var(--pr);border-color:var(--pr);color:#fff}
+.sugg{list-style:none;margin:4px 0 0;padding:0;border:1px solid var(--bd);border-radius:8px;max-height:240px;overflow:auto;background:var(--sf)}
+.sugg li{padding:6px 10px;cursor:pointer}
+.sugg li:hover{background:var(--bg)}
+.chosen{margin-top:6px;color:var(--pr);font-weight:600}
+.out label{display:flex;justify-content:space-between;align-items:center}
+.hint{color:var(--mu);font-size:.85rem}
+.err{color:var(--ac);font-size:.9rem;margin-top:6px}
+code{background:var(--bg);padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<main>
+<h1>Конструктор камеры</h1>
+<p class="hint">Создаёт пост веб-камеры для Blogger. Путь постов: <code>@@PREFIX@@</code>. Данные городов встроены в этот файл, интернет не нужен.</p>
+
+<div class="card">
+  <h2>1. Город</h2>
+  <input id="city-q" placeholder="Начните вводить: Париж, Paris, Нью-Йорк…" autocomplete="off">
+  <ul class="sugg" id="city-sugg" hidden></ul>
+  <div class="chosen" id="city-chosen"></div>
+</div>
+
+<div class="card">
+  <h2>2. Камера</h2>
+  <div class="row">
+    <div><label for="ru">Название по-русски</label><input id="ru" placeholder="Эйфелева башня"></div>
+    <div><label for="en">Название по-английски (из него делается ссылка)</label><input id="en" placeholder="Eiffel Tower"></div>
+  </div>
+  <div class="row">
+    <div><label for="wen">Статья английской Википедии об объекте (необязательно)</label><input id="wen" placeholder="Eiffel Tower"></div>
+    <div><label for="lat">Широта камеры (необязательно)</label><input id="lat" placeholder="48.8584"></div>
+    <div><label for="lon">Долгота камеры (необязательно)</label><input id="lon" placeholder="2.2945"></div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>3. Трансляции</h2>
+  <p class="hint">Первая — основная, остальные — резервные. Для YouTube вставьте ссылку на видео или на канал: тип определится сам.
+  Типы: <b>yt</b> — видео YouTube, <b>ytc</b> — эфир канала YouTube, <b>iframe</b> — код встраивания другого сайта (адрес из src),
+  <b>hls</b> — поток .m3u8, <b>img</b> — обновляемая картинка, <b>link</b> — просто ссылка.</p>
+  <div id="srcs"></div>
+  <button id="add-src" type="button">+ Ещё трансляция</button>
+</div>
+
+<button class="pri" id="make" type="button">Собрать пост</button>
+<div class="err" id="err"></div>
+
+<div class="card out" id="out" hidden>
+  <h2>4. Что вставить в Blogger</h2>
+  <p class="hint">Новое сообщение → режим «HTML» → вставьте код. Справа: «Ярлыки» — метки, «Постоянная ссылка» → «Пользовательская ссылка» — адрес.
+  Затем откройте пост «Все камеры» в режиме HTML и добавьте строку из последнего поля перед <code>&lt;/ul&gt;</code>.</p>
+  <label>Заголовок <button type="button" data-copy="o-title">Копировать</button></label><input id="o-title" readonly>
+  <label>Ярлыки <button type="button" data-copy="o-labels">Копировать</button></label><input id="o-labels" readonly>
+  <label>Пользовательская ссылка <button type="button" data-copy="o-slug">Копировать</button></label><input id="o-slug" readonly>
+  <label>HTML поста <button type="button" data-copy="o-html">Копировать</button></label><textarea id="o-html" readonly></textarea>
+  <label>Строка для поста «Все камеры» <button type="button" data-copy="o-index">Копировать</button></label><textarea id="o-index" readonly style="min-height:60px"></textarea>
+  <p class="hint" id="o-city-note"></p>
+</div>
+</main>
+<script>
+var PREFIX = '@@PREFIX@@';
+var CITIES = @@CITIES@@;
+var COUNTRIES = @@COUNTRIES@@;
+</script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (id) { return document.getElementById(id); };
+  var city = null;
+
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;'); }
+  function slugify(s) {
+    return String(s).replace(/['’ʻ]/g, '').normalize('NFKD').replace(/[^\x00-\x7f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  }
+  function norm(s) { return String(s || '').toLowerCase().replace(/ё/g, 'е'); }
+
+  // Поиск города: [slug, ru, en, cc, lat, lon, tz, pop]
+  $('city-q').addEventListener('input', function () {
+    var q = norm(this.value.trim()), ul = $('city-sugg');
+    ul.innerHTML = '';
+    if (q.length < 2) { ul.hidden = true; return; }
+    var hits = CITIES.filter(function (c) { return norm(c[1]).indexOf(q) === 0 || norm(c[2]).indexOf(q) === 0; })
+      .sort(function (a, b) { return b[7] - a[7]; }).slice(0, 15);
+    hits.forEach(function (c) {
+      var co = COUNTRIES[c[3]] || ['', ''];
+      var li = document.createElement('li');
+      li.textContent = c[1] + ' / ' + c[2] + ' — ' + co[0] + (c[7] ? ', ' + c[7].toLocaleString('ru') + ' жит.' : '');
+      li.addEventListener('click', function () { choose(c); });
+      ul.appendChild(li);
+    });
+    ul.hidden = !hits.length;
+  });
+  function choose(c) {
+    city = c;
+    var co = COUNTRIES[c[3]];
+    $('city-chosen').textContent = '✓ ' + c[1] + ', ' + co[0] + ' — ' + PREFIX + c[0] + '.html';
+    $('city-sugg').hidden = true;
+    $('city-q').value = c[1];
+  }
+
+  function addSrc(v) {
+    v = v || {};
+    var row = document.createElement('div');
+    row.className = 'src';
+    row.innerHTML = '<select><option>yt</option><option>ytc</option><option>iframe</option><option>hls</option><option>img</option><option>link</option></select>' +
+      '<input placeholder="Ссылка, ID видео или адрес встраивания">' +
+      '<input placeholder="Автор / подпись">' +
+      '<input placeholder="Качество: 4K">' +
+      '<button type="button" title="Удалить">×</button>';
+    var sel = row.children[0], val = row.children[1];
+    sel.value = v.type || 'yt';
+    val.value = v.val || '';
+    val.addEventListener('change', function () {
+      var s = val.value.trim(), m;
+      if ((m = /(?:v=|youtu\.be\/|\/live\/|\/embed\/)([\w-]{11})/.exec(s))) { sel.value = 'yt'; val.value = m[1]; }
+      else if ((m = /\/channel\/(UC[\w-]{22})/.exec(s))) { sel.value = 'ytc'; val.value = m[1]; }
+      else if (/\.m3u8(\?|$)/.test(s)) sel.value = 'hls';
+      else if ((m = /src=["']([^"']+)["']/.exec(s))) { sel.value = 'iframe'; val.value = m[1]; }
+    });
+    row.children[4].addEventListener('click', function () { row.remove(); });
+    $('srcs').appendChild(row);
+  }
+  $('add-src').addEventListener('click', function () { addSrc(); });
+  addSrc(); addSrc({ type: 'ytc' });
+
+  function srcLine(type, v, by, q) {
+    var qq = q ? ' <span class="q">' + esc(q) + '</span>' : '';
+    if (type === 'yt') return '<li><a href="https://www.youtube.com/watch?v=' + esc(v) + '" data-type="yt" data-id="' + esc(v) + '">YouTube · ' + esc(by) + qq + '</a></li>';
+    if (type === 'ytc') return '<li><a href="https://www.youtube.com/channel/' + esc(v) + '/live" data-type="ytc" data-id="' + esc(v) + '"><span class="ru">Эфир канала</span><span class="en">Channel live</span> · ' + esc(by) + qq + '</a></li>';
+    if (type === 'link') return '<li><a href="' + esc(v) + '" data-type="link" target="_blank" rel="noopener nofollow"><span class="ru">На сайте источника</span><span class="en">On the source site</span> · ' + esc(by) + ' ↗</a></li>';
+    var label = type === 'img' ? '<span class="ru">Фото</span><span class="en">Photo</span> · ' + esc(by || type) : esc(by || type);
+    return '<li><a href="' + esc(v) + '" data-type="' + type + '" data-src="' + esc(v) + '"' + (type === 'img' ? ' data-refresh="60"' : '') + '>' + label + qq + '</a></li>';
+  }
+
+  $('make').addEventListener('click', function () {
+    var err = $('err');
+    err.textContent = '';
+    var ru = $('ru').value.trim(), en = $('en').value.trim();
+    var srcs = Array.prototype.map.call(document.querySelectorAll('.src'), function (r) {
+      return [r.children[0].value, r.children[1].value.trim(), r.children[2].value.trim(), r.children[3].value.trim()];
+    }).filter(function (s) { return s[1]; });
+    if (!city) { err.textContent = 'Выберите город из подсказок.'; return; }
+    if (!ru || !en) { err.textContent = 'Заполните название камеры на обоих языках.'; return; }
+    if (!srcs.length) { err.textContent = 'Добавьте хотя бы одну трансляцию.'; return; }
+    var co = COUNTRIES[city[3]], cslug = co[2];
+    var slug = city[0] + '-' + slugify(en);
+    var lat = $('lat').value.trim() || city[4], lon = $('lon').value.trim() || city[5];
+    var url = function (s) { return PREFIX + s + '.html'; };
+    var crumbs = '<nav class="crumbs"><a href="' + url('countries') + '" data-en="Countries">Страны</a> <span>›</span> ' +
+      '<a href="' + url(cslug) + '" data-en="' + esc(co[1]) + '">' + esc(co[0]) + '</a> <span>›</span> ' +
+      '<a href="' + url(city[0]) + '" data-en="' + esc(city[2]) + '">' + esc(city[1]) + '</a> <span>›</span> ' +
+      '<span data-en="' + esc(en) + '">' + esc(ru) + '</span></nav>';
+    var html = [
+      '<div class="wp" data-t="cam" data-slug="' + slug + '" data-city="' + city[0] + '" data-country="' + cslug + '" data-lat="' + esc(lat) + '" data-lon="' + esc(lon) + '" data-tz="' + esc(city[6]) + '" data-wen="' + esc($('wen').value.trim()) + '"></div>',
+      crumbs,
+      '<div class="wp-player"><!-- плеер --></div>',
+      '<!-- Трансляции: первая — основная. Порядок можно менять, переставляя строки. -->',
+      '<ol class="wp-src">'
+    ].concat(srcs.map(function (s) { return srcLine(s[0], s[1], s[2], s[3]); }), [
+      '</ol>',
+      '<div class="wp-wx"><!-- местное время и погода --></div>',
+      '<div class="wp-desc ru"><!-- СВОЙ ТЕКСТ (RU): впишите сюда абзацы <p>…</p> --></div>',
+      '<div class="wp-desc en"><!-- OWN TEXT (EN): put <p>…</p> here --></div>',
+      '<h2 data-en="More webcams in this city">Другие камеры города</h2>',
+      '<div class="wp-more"><!-- другие камеры --></div>'
+    ]).join('\n');
+    var yt = (srcs.filter(function (s) { return s[0] === 'yt'; })[0] || [])[1] || '';
+    $('o-title').value = ru + ' — ' + city[1] + ' | ' + en + ' — ' + city[2];
+    $('o-labels').value = 'cam, ' + city[0] + ', ' + cslug;
+    $('o-slug').value = slug;
+    $('o-html').value = html;
+    $('o-index').value = '<li><a href="' + url(slug) + '" data-en="' + esc(en) + '" data-yt="' + esc(yt) + '" data-lat="' + esc(lat) + '" data-lon="' + esc(lon) +
+      '" data-iso="' + city[3] + '" data-c="' + esc(city[1]) + '|' + esc(city[2]) + '" data-ch="' + url(city[0]) + '" data-k="' + esc(co[0]) + '|' + esc(co[1]) + '">' + esc(ru) + '</a></li>';
+    $('o-city-note').textContent = 'Пост города: ' + url(city[0]) + '. Если город ещё не импортирован, он появится в списках сразу после добавления строки в «Все камеры»; ' +
+      'в посте страны его строку можно раскомментировать вручную.';
+    $('out').hidden = false;
+    $('out').scrollIntoView({ behavior: 'smooth' });
+  });
+
+  document.addEventListener('click', function (e) {
+    var id = e.target.getAttribute && e.target.getAttribute('data-copy');
+    if (!id) return;
+    var el = $(id);
+    el.select();
+    (navigator.clipboard ? navigator.clipboard.writeText(el.value) : Promise.reject()).catch(function () { document.execCommand('copy'); });
+    e.target.textContent = 'Скопировано';
+    setTimeout(function () { e.target.textContent = 'Копировать'; }, 1500);
+  });
+})();
+</script>
+</body>
+</html>

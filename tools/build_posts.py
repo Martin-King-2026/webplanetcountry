@@ -54,6 +54,37 @@ PRIVATE = re.compile("|".join([
 ]), re.I)
 
 
+# Группы камер для сортировки на сайте: помещения, улицы, общие виды (всё остальное — панорамы, пляжи, горы…).
+# Проверяются по порядку; в data/cameras.json можно задать явно: "kind": "indoor" | "street" | "view".
+KIND_INDOOR = re.compile("|".join([
+    r"(^|\s)(в|во) (пиццери|кафе|ресторан|бар[ае]|суши|столов|магазин|салон|парикмахерск|барбершоп|клиник|офис|цех|зал[ае]|"
+    r"храм|церкв|соборе|музе|школ|бассейн|спортзал|фитнес|автосервис|мастерск|пекарн|прачечн|пункт|торгов|библиотек|"
+    r"аквапарк|вольер|аэротруб|бане|студи|театр|цирк|дельфинари|океанариум|галере)",
+    r"горяч\w* цех|на кухне|кухн[яюе]\b|внутри|изнутри|интерьер|аквариум|студия|аудитори|детск\w* сад|"
+    r"додо|dodo|пицц|pizza|япоки|суши-бар|барбершоп|парикмахер|прачечн|постира|выдачи|wildberries|озон|сдэк|бильярд|"
+    r"тренаж|склад|клиник|автосалон|автосервис|малярн|техцентр|шиномонтаж|автомо[йе]к|аптек|оптик|витрин|офис|"
+    r"inside|indoor|interior|kitchen|lobby|\bin the (bar|pub|cafe|restaurant|shop|store|church|studio|hall)|aquarium|"
+    r"\bstudio\b|pizzeria|barber|bakery|laundry|library|classroom|newsroom",
+]), re.I)
+KIND_STREET = re.compile(
+    r"улиц|\bул\.|проспект|пр-т|перекр[её]ст|пересечени|шоссе|дорог|трасс[аеуы]\b|автодорог|бульвар|переул|набережн|площад(?!к)|"
+    r"развязк|кольц[оае]|переезд|въезд|выезд|парковк|стоянк|двор|подъезд|остановк|вокзал|тоннел|магистрал|"
+    r"\bstreet\b|\bst\.|avenue|\bave\b|\broad\b|crossroad|intersection|highway|boulevard|\bsquare\b|traffic|junction|"
+    r"parking|plaza|piazza|\bcalle\b|\brua\b|\bvia\b|stra(ss|ß)e|platz|\bdrive\b|\blane\b|crossing|downtown|station", re.I)
+KIND_NAMES = {"view": ("общие виды", "General views"), "street": ("улицы", "Streets"), "indoor": ("помещения", "Indoors")}
+
+
+def cam_kind(cam):
+    if cam.get("kind") in KIND_NAMES:
+        return cam["kind"]
+    t = f'{cam["ru"]} {cam["en"]}'
+    if KIND_INDOOR.search(t):
+        return "indoor"
+    if KIND_STREET.search(t):
+        return "street"
+    return "view"
+
+
 def is_private(cam):
     if "private" in cam:
         return bool(cam["private"])
@@ -116,6 +147,9 @@ class Site:
         self.with_sights = with_sights
         sc = DATA / "sights_cache.json"
         self.sights = json.loads(sc.read_text(encoding="utf-8")) if sc.exists() else {}
+        # точки панорамы улиц в центре городов (tools/import_kamonline.py): {gid: [широта, долгота, направление]}
+        svf = DATA / "streetview.json"
+        self.streetview = json.loads(svf.read_text(encoding="utf-8")) if svf.exists() else {}
         self.countries = json.loads((DATA / "countries.json").read_text(encoding="utf-8"))
         self.cities = json.loads((DATA / "cities.json").read_text(encoding="utf-8"))
         cams_file = DATA / "cameras.json"
@@ -206,8 +240,8 @@ class Site:
         extra = f' data-k="{esc(co["ru"])}|{esc(co["en"])}"' if with_country else ""
         cams = self.cams_by_city.get(ci["gid"])
         # координаты и число камер — для карты городов на странице страны (только у городов с камерами)
-        if geo and cams:
-            extra += f' data-lat="{round(ci["lat"], 4)}" data-lon="{round(ci["lon"], 4)}" data-n="{len(cams)}"'
+        if geo:  # координаты всех городов — для карты страны; число камер — у городов с камерами
+            extra += f' data-lat="{round(ci["lat"], 3)}" data-lon="{round(ci["lon"], 3)}"' + (f' data-n="{len(cams)}"' if cams else "")
         line = f'<li><a href="{self.url(ci["slug"])}" data-en="{esc(ci["en"])}"{extra}>{esc(ci["ru"])}</a></li>'
         return line if cams else f"<!-- {line} -->"
 
@@ -316,7 +350,9 @@ class Site:
         body = "\n".join([
             f'<div class="wp" data-t="city" data-gid="{ci["gid"]}" data-qid="{ci.get("qid", "")}" data-cc="{ci["cc"]}" data-slug="{ci["slug"]}" '
             f'data-country="{co["slug"]}" data-ru="{esc(ci["ru"])}" data-en="{esc(ci["en"])}" data-lat="{ci["lat"]}" data-lon="{ci["lon"]}" '
-            f'data-tz="{ci["tz"]}" data-wen="{esc(ci["wen"])}" data-n="{len(self.cams_by_city.get(ci["gid"], []))}"></div>',
+            f'data-tz="{ci["tz"]}" data-wen="{esc(ci["wen"])}" data-n="{len(self.cams_by_city.get(ci["gid"], []))}"'
+            + (f' data-sv="{",".join(map(str, self.streetview[str(ci["gid"])]))}"' if str(ci["gid"]) in self.streetview else "")
+            + "></div>",
             self.crumbs([(co["ru"], co["en"], co["slug"]), (ci["ru"], ci["en"], ci["slug"])]),
             '<div class="wp-wx"><!-- местное время и погода --></div>',
             '<h2 data-en="Sights">Достопримечательности</h2>',
@@ -354,9 +390,10 @@ class Site:
                 if kind == "img":
                     label = f'<span class="ru">Фото</span><span class="en">Photo</span> · {label}'
                 srcs.append(f'<li><a href="{esc(s.get("href") or s["src"])}" data-type="{kind}" data-src="{esc(s["src"])}"{extra}>{label}{q}</a></li>')
+        kind = cam_kind(cam)
         body = "\n".join([
             f'<div class="wp" data-t="cam" data-slug="{cam["slug"]}" data-city="{ci["slug"]}" data-country="{co["slug"]}" '
-            f'data-lat="{lat}" data-lon="{lon}" data-tz="{ci["tz"]}" data-wen="{esc(cam.get("wen", ""))}"></div>',
+            f'data-lat="{lat}" data-lon="{lon}" data-tz="{ci["tz"]}" data-wen="{esc(cam.get("wen", ""))}" data-kind="{kind}"></div>',
             self.crumbs([(co["ru"], co["en"], co["slug"]), (ci["ru"], ci["en"], ci["slug"]), (cam["ru"], cam["en"], None)]),
             '<div class="wp-player"><!-- плеер --></div>',
             '<!-- Трансляции: первая — основная. Порядок можно менять, переставляя строки. -->',
@@ -367,10 +404,11 @@ class Site:
             '<div class="wp-more"><!-- другие камеры --></div>',
         ])
         post = {"slug": cam["slug"], "title": f'{cam["ru"]} — {ci["ru"]} | {cam["en"]} — {ci["en"]}',
-                "labels": ["cam", ci["slug"], co["slug"]], "content": body}
+                "labels": ["cam", ci["slug"], co["slug"]], "content": body, "kind": kind}
         if is_private(cam):
-            # Черновик без меток города: даже если его случайно опубликовать, в списки города он не попадёт
-            post.update(labels=["служебные", co["slug"]], draft=True)
+            # Черновик без меток города: даже если его случайно опубликовать, в списки города он не попадёт.
+            # Ярлык группы («помещения», «улицы», «общие виды») — чтобы фильтровать черновики в панели Blogger
+            post.update(labels=["служебные", KIND_NAMES[kind][0], co["slug"]], draft=True)
         return post
 
     def cam_index_li(self, cam):
@@ -383,7 +421,7 @@ class Site:
         lat, lon = cam.get("lat", ci["lat"]), cam.get("lon", ci["lon"])
         return (f'<li><a href="{self.url(cam["slug"])}" data-en="{esc(cam["en"])}"' + (f' data-yt="{yt}"' if yt else "")
                 + (f' data-rt="{rt}"' if rt and not yt else "")
-                + f' data-lat="{round(float(lat), 4)}" data-lon="{round(float(lon), 4)}" data-iso="{ci["cc"]}" '
+                + f' data-lat="{round(float(lat), 4)}" data-lon="{round(float(lon), 4)}" data-iso="{ci["cc"]}" data-g="{cam_kind(cam)}" '
                 f'data-c="{esc(ci["ru"])}|{esc(ci["en"])}" data-ch="{self.url(ci["slug"])}">{esc(cam["ru"])}</a></li>')
 
     def menu_posts(self):
@@ -621,6 +659,10 @@ def main():
         tpl.replace("@@PREFIX@@", args.prefix).replace("@@CITIES@@", js(rows)).replace("@@COUNTRIES@@", js(cos)), encoding="utf-8")
     print(f"Постов: {n} (разделы и страны {len(first)}, камеры с городами {len(second)}, остальные города {len(rest)}); файлов: {len(lines)}")
     print(f"Служебных камер (черновики в import-sluzhebnye/): {len(private)}; на сайте камер: {len(site.cams)}")
+    import sys
+    sys.path.insert(0, str(ROOT / "tools"))  # при запуске «py -I» папка скрипта в путь поиска не попадает
+    import build_private_page  # страница служебных камер для компьютера — из тех же данных
+    build_private_page.main()
 
 
 if __name__ == "__main__":

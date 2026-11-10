@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html>
+<html b:version='2' class='v2' data-lang='ru' expr:dir='data:blog.languageDirection' lang='ru' xmlns='http://www.w3.org/1999/xhtml' xmlns:b='http://www.google.com/2005/gml/b' xmlns:data='http://www.google.com/2005/gml/data' xmlns:expr='http://www.google.com/2005/gml/expr'>
+<head>
+<meta content='width=device-width, initial-scale=1' name='viewport'/>
+<script>//<![CDATA[
+(function(d){try{var t=localStorage.getItem('wp-theme'),l=localStorage.getItem('wp-lang'),q=/[?&]lang=(en|ru)/.exec(location.search);if(t)d.setAttribute('data-theme',JSON.parse(t));l=q?q[1]:(l?JSON.parse(l):'ru');d.setAttribute('data-lang',l);d.lang=l}catch(e){}})(document.documentElement);
+//]]></script>
+<b:include data='blog' name='all-head-content'/>
+<title><data:blog.pageTitle/></title>
+<meta content='#4353FF' name='theme-color'/>
+<link href='https://fonts.googleapis.com' rel='preconnect'/>
+<link crossorigin='anonymous' href='https://fonts.gstatic.com' rel='preconnect'/>
+<link href='https://fonts.googleapis.com/css2?family=Golos+Text:wght@400..700&amp;display=swap' rel='stylesheet'/>
+<b:skin><![CDATA[
+/*@@CSS@@*/
+]]></b:skin>
+</head>
+<body>
+<div class='wrap'>
+<aside class='side'>
+  <div class='side-top'>
+    <a class='brand' expr:href='data:blog.homepageUrl'><span class='dot'>&#8203;</span><span><span class='ru'>Веб-камеры планеты</span><span class='en'>Webcams of the Planet</span></span></a>
+    <button class='btn burger' data-i18n-label='menu' type='button'><svg viewBox='0 0 24 24'><path d='M4 6h16M4 12h16M4 18h16'/></svg></button>
+  </div>
+  <div class='side-body'>
+    <div class='search'><svg viewBox='0 0 24 24'><circle cx='11' cy='11' r='7'/><path d='M20 20l-3.5-3.5'/></svg><input autocomplete='off' data-i18n-ph='search' placeholder='Страна, город или камера' type='search'/></div>
+    <b:section class='menu' id='menu' maxwidgets='3' showaddelement='yes'>
+      <b:widget id='HTML1' locked='false' title='Меню' type='HTML'>
+        <b:includable id='main'>
+          <b:if cond='data:content != &quot;&quot;'><data:content/><b:else/>@@MENU@@</b:if>
+        </b:includable>
+      </b:widget>
+    </b:section>
+    <div class='tools-row'>
+      <button class='btn' id='wp-fav-btn' type='button'><svg viewBox='0 0 24 24'><path d='M12 3l2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z'/></svg><span data-i18n='fav'>Избранное</span></button>
+      <button class='btn' data-i18n-label='theme' id='wp-theme' type='button'><svg viewBox='0 0 24 24'><path d='M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z'/></svg></button>
+      <button class='btn' data-i18n-label='lang' id='wp-lang' type='button'>EN</button>
+    </div>
+    <ul class='favs' hidden='hidden' id='wp-favs'><li>&#8203;</li></ul>
+  </div>
+</aside>
+<main class='main'>
+  <b:section class='main-sec' id='main' showaddelement='no'>
+    <b:widget id='Blog1' locked='true' title='Сообщения' type='Blog'>
+      <b:includable id='main' var='top'>
+        <b:if cond='data:blog.url == data:blog.homepageUrl'>
+          <div class='post'><div class='wp' data-t='home'><p class='ld'>…</p></div></div>
+        <b:else/>
+          <b:if cond='data:blog.pageType == &quot;item&quot; or data:blog.pageType == &quot;static_page&quot;'>
+            <b:loop values='data:posts' var='post'><b:include data='post' name='post'/></b:loop>
+          <b:else/>
+            <b:if cond='data:blog.pageType == &quot;error_page&quot;'>
+              <div class='post'><h1 data-i18n='notFound'>Страница не найдена</h1><p><a expr:href='data:blog.homepageUrl'>← <span class='ru'>На главную</span><span class='en'>Home</span></a></p></div>
+            <b:else/>
+              <div class='post'>
+                <h1><data:blog.pageName/></h1>
+                <ul class='plist'>
+                  <b:loop values='data:posts' var='post'>
+                    <li><a expr:data-title='data:post.title' expr:href='data:post.url'><data:post.title/></a></li>
+                  </b:loop>
+                </ul>
+                <div class='pager'>
+                  <b:if cond='data:newerPageUrl'><a class='btn' expr:href='data:newerPageUrl'>←</a></b:if>
+                  <b:if cond='data:olderPageUrl'><a class='btn' expr:href='data:olderPageUrl'>→</a></b:if>
+                </div>
+              </div>
+            </b:if>
+          </b:if>
+        </b:if>
+      </b:includable>
+      <b:includable id='post' var='post'>
+        <article class='post'>
+          <h1 class='post-title' expr:data-title='data:post.title'><data:post.title/></h1>
+          <div class='post-body'><data:post.body/></div>
+        </article>
+      </b:includable>
+    </b:widget>
+  </b:section>
+</main>
+</div>
+<b:section class='popular' id='popular' showaddelement='no'>
+  <b:widget id='PopularPosts1' locked='false' title='Топ за неделю' type='PopularPosts'>
+    <b:includable id='main'>
+      <b:loop values='data:posts' var='post'><a expr:data-title='data:post.title' expr:href='data:post.href'><data:post.title/></a></b:loop>
+    </b:includable>
+  </b:widget>
+  <b:widget id='PopularPosts2' locked='false' title='Топ за всё время' type='PopularPosts'>
+    <b:includable id='main'>
+      <b:loop values='data:posts' var='post'><a expr:data-title='data:post.title' expr:href='data:post.href'><data:post.title/></a></b:loop>
+    </b:includable>
+  </b:widget>
+</b:section>
+<!-- Секция для обязательных виджетов Blogger (заголовок, атрибуция, навбар) и оставшихся от прежней темы.
+     Без такой секции Blogger не выводит ни одного виджета. На сайте она скрыта. -->
+<b:section class='extras' id='extras' preferred='yes' showaddelement='no'/>
+<footer class='foot'>
+  <span class='ru'>© <data:blog.title/>. Тексты — Википедия и Викигид (CC BY-SA), погода — Open-Meteo. Трансляции принадлежат их владельцам и встроены с их платформ.</span>
+  <span class='en'>© Webcams of the Planet. Texts: Wikipedia and Wikivoyage (CC BY-SA), weather: Open-Meteo. Streams belong to their owners and are embedded from their platforms.</span>
+</footer>
+<script>//<![CDATA[
+/* НАСТРОЙКИ. windyKey — бесплатный ключ Windy Webcams API (api.windy.com/keys). Пусто — камеры Windy не показываются. */
+window.WP_CONFIG = { windyKey: '' };
+//]]></script>
+<script>//<![CDATA[
+/*@@JS@@*/
+//]]></script>
+</body>
+</html>
