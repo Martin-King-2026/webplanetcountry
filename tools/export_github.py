@@ -29,6 +29,7 @@ FILES = {
     "data/cities.json": "data/cities.json",
     "data/sights_cache.json": "data/sights_cache.json",
     "data/streetview.json": "data/streetview.json",
+    "data/streetview_fix.json": "data/streetview_fix.json",
 }
 README = """# Веб-камеры планеты
 

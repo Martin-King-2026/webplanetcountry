@@ -150,6 +150,11 @@ class Site:
         # точки панорамы улиц в центре городов (tools/import_kamonline.py): {gid: [широта, долгота, направление]}
         svf = DATA / "streetview.json"
         self.streetview = json.loads(svf.read_text(encoding="utf-8")) if svf.exists() else {}
+        # ручные поправки: точка, где Google показывает обычную панораму со стрелками, а не фото туриста
+        fix = DATA / "streetview_fix.json"
+        if fix.exists():
+            self.streetview.update({k: v for k, v in json.loads(fix.read_text(encoding="utf-8")).items()
+                                    if not k.startswith("_")})
         self.countries = json.loads((DATA / "countries.json").read_text(encoding="utf-8"))
         self.cities = json.loads((DATA / "cities.json").read_text(encoding="utf-8"))
         cams_file = DATA / "cameras.json"

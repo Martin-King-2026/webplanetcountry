@@ -113,12 +113,12 @@
       windy: 'Камеры Windy.com поблизости', notFound: 'Страница не найдена', wxSrc: 'Погода: Open-Meteo.com',
       menu: 'Меню', noTop: 'Статистика просмотров появится, когда у сайта накопятся посещения: топ обновляется раз в сутки.', empty: 'Список пуст.',
       onSource: 'Смотреть на сайте владельца камеры ↗',
-      mapCities: 'Карта городов с камерами', mapCams: 'Карта камер', mapFail: 'Карта сейчас не загружается. Попробуйте позже.',
+      mapCities: 'Карта городов с камерами', mapCams: 'Карта камер', mapCity: 'Карта города', mapFail: 'Карта сейчас не загружается. Попробуйте позже.',
       mapEmpty: 'Пока нечего показать на карте.', approx: 'место примерное: у камеры нет точных координат',
       approxMany: 'Ещё {n} камер без точных координат — в списке ниже ↓',
       k_all: 'Все', k_view: 'Общие виды', k_street: 'Улицы', k_indoor: 'Помещения',
       countryMap: 'Карта страны', countryMapNote: 'Крупные точки — города с веб-камерами, мелкие — остальные города. Нажмите на точку, чтобы открыть страницу города.',
-      street: 'Панорама улиц', streetNote: 'Панорама: Google Street View, с точки в центре города. Её можно поворачивать и идти по улицам. Если снимков рядом с центром нет, окно будет пустым.',
+      street: 'Панорама улиц', streetNote: 'Google Street View с точки в центре города. Панораму можно поворачивать, а стрелками на дороге — идти по улицам.',
       searchHint: 'Введите в поиске слева хотя бы две буквы названия страны, города или камеры.',
       nothingFound: 'По запросу «{q}» ничего не найдено.'
     },
@@ -140,12 +140,12 @@
       windy: 'Windy.com webcams nearby', notFound: 'Page not found', wxSrc: 'Weather: Open-Meteo.com',
       menu: 'Menu', noTop: 'View statistics will appear once the site gets some visits; the list is updated daily.', empty: 'The list is empty.',
       onSource: 'Watch on the camera owner’s site ↗',
-      mapCities: 'Map of cities with webcams', mapCams: 'Map of webcams', mapFail: 'The map is not loading right now. Please try later.',
+      mapCities: 'Map of cities with webcams', mapCams: 'Map of webcams', mapCity: 'City map', mapFail: 'The map is not loading right now. Please try later.',
       mapEmpty: 'Nothing to show on the map yet.', approx: 'approximate location: no exact coordinates for this webcam',
       approxMany: '{n} more webcams without exact coordinates — see the list below ↓',
       k_all: 'All', k_view: 'General views', k_street: 'Streets', k_indoor: 'Indoors',
       countryMap: 'Map of the country', countryMapNote: 'Large dots are cities with webcams, small dots are other cities. Click a dot to open the city page.',
-      street: 'Street View', streetNote: 'Panorama: Google Street View from a point in the city centre. You can turn around and walk the streets. If there is no imagery near the centre, the window stays empty.',
+      street: 'Street View', streetNote: 'Google Street View from a point in the city centre. Turn around, and use the arrows on the road to walk the streets.',
       searchHint: 'Type at least two letters of a country, city or webcam name in the search box on the left.',
       nothingFound: 'Nothing found for “{q}”.'
     }
@@ -205,7 +205,7 @@
   // ---------- данные блога ----------
   function feed(label, max) {
     if (CFG.static) {
-      return getJSON(CFG.base + 'feeds/' + enc(label || 'all') + '.json').then(function (j) { return (j.entries || []).slice(0, max || 150); });
+      return getJSON(CFG.base + 'feeds/' + enc(label || 'all') + '.json' + (CFG.fv ? '?v=' + CFG.fv : '')).then(function (j) { return (j.entries || []).slice(0, max || 150); });
     }
     var url = '/feeds/posts/default' + (label ? '/-/' + enc(label) : '') + '?alt=json&max-results=' + (max || 150);
     return getJSON(url).then(function (j) {
@@ -724,27 +724,24 @@
 
   // ---------- панорама улиц (Google Street View) ----------
   // Открывается с точки в центре города: data-sv="широта,долгота,направление" (точки из data/streetview.json),
-  // иначе — координаты города. Встраивание без ключа; iframe грузится, только когда до него докрутили.
+  // иначе — координаты города. Встраивание без ключа. Под спойлером: панорама грузится только при открытии.
   function streetBlock(before, lat, lon, sv) {
     if (!before || isNaN(lat)) return;
     var p = String(sv || '').split(',').map(Number);
     if (p.length < 2 || isNaN(p[0])) p = [lat, lon, 0];
-    // Панорама подгружается, только когда блок близко к экрану (своя проверка: loading=lazy
-    // в некоторых браузерах так и не загружает вставленный скриптом iframe)
     var frame = h('iframe', { allowfullscreen: true, referrerpolicy: 'no-referrer-when-downgrade', title: t('street') });
-    var box = h('div', { class: 'sv' }, frame), seen = false;
+    var seen = false;
     function src() {
+      // наклон 10 — взгляд чуть вниз, на дорогу: стрелки перехода видны посередине
       if (seen) frame.src = 'https://www.google.com/maps?layer=c&cbll=' + p[0] + ',' + p[1] + '&cbp=11,' + (p[2] || 0) + ',0,0,10&hl=' + lang + '&output=svembed';
     }
-    function show() { if (!seen) { seen = true; src(); } }
     langHooks.push(src);
-    before.before(h('h2', { 'data-i18n': 'street' }, t('street')), box,
-      h('p', { class: 'srcnote', 'data-i18n': 'streetNote' }, t('streetNote')));
-    if (!('IntersectionObserver' in window)) return show();
-    var io = new IntersectionObserver(function (e) {
-      if (e.some(function (x) { return x.isIntersecting; })) { io.disconnect(); show(); }
-    }, { rootMargin: '300px' });
-    io.observe(box);
+    var det = h('details', { class: 'wp-map wp-sv' },
+      h('summary', {}, h('span', { class: 'ic', html: ICON.map }), h('span', { 'data-i18n': 'street' }, t('street'))),
+      h('div', { class: 'sv' }, frame),
+      h('p', { class: 'srcnote map-note', 'data-i18n': 'streetNote' }, t('streetNote')));
+    det.addEventListener('toggle', function () { if (det.open && !seen) { seen = true; src(); } });
+    before.before(det);
   }
 
   // ---------- карты (Leaflet и подложка грузятся только при первом открытии блока) ----------
@@ -758,7 +755,7 @@
     return leafletP;
   }
   // points() → Promise<[{lat, lon, ru, en, href, sub, n, approx}]>
-  function mapBlock(before, key, points) {
+  function mapBlock(before, key, points, center) {
     if (!before) return;
     var box = h('div', { class: 'map-box' });
     var det = h('details', { class: 'wp-map' },
@@ -772,7 +769,7 @@
       msg(h('p', { class: 'ld' }, t('loading')));
       Promise.all([loadLeaflet(), points()]).then(function (r) {
         var pts = r[1].filter(function (p) { return p.lat != null && !isNaN(p.lat) && !isNaN(p.lon); });
-        if (!pts.length) { msg(h('p', { class: 'stub' }, t('mapEmpty'))); return; }
+        if (!pts.length && !center) { msg(h('p', { class: 'stub' }, t('mapEmpty'))); return; }
         box.classList.remove('msg');
         box.replaceChildren();
         var map = L.map(box, { scrollWheelZoom: false, worldCopyJump: true, attributionControl: false });
@@ -789,7 +786,8 @@
           });
         });
         var b = pts.map(function (p) { return [p.lat, p.lon]; });
-        if (b.length === 1) map.setView(b[0], 12); else map.fitBounds(b, { padding: [28, 28], maxZoom: 15 });
+        // камер нет — карта города по его центру; одна камера — город вокруг неё
+        if (!b.length) map.setView(center, 13); else if (b.length === 1) map.setView(b[0], 13); else map.fitBounds(b, { padding: [28, 28], maxZoom: 15 });
         // колесо мыши масштабирует карту только после щелчка по ней, чтобы не мешать прокрутке страницы
         map.once('click', function () { map.scrollWheelZoom.enable(); });
         setTimeout(function () { map.invalidateSize(); }, 60);
@@ -1262,7 +1260,8 @@
       if (camsEl) camsEl.id = 'cams';  // сюда ведёт метка «ещё N камер» на карте
       // панорама — перед заголовком «Веб-камеры»
       streetBlock(camsEl && camsEl.previousElementSibling && camsEl.previousElementSibling.tagName === 'H2' ? camsEl.previousElementSibling : camsEl, lat, lon, d.sv);
-      if (+d.n) mapBlock(camsEl, 'mapCams', cityPoints(lat, lon));  // data-n — камер в городе при сборке
+      // data-n — камер в городе при сборке; без камер всё равно показываем карту города
+      if (camsEl && !isNaN(lat)) mapBlock(camsEl, +d.n ? 'mapCams' : 'mapCity', cityPoints(lat, lon), [lat, lon]);
       camsBlock($('.wp-cams', body), d.slug, lat, lon);
       itemTools('city');
     },

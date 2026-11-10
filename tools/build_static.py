@@ -16,6 +16,7 @@ import pathlib
 import re
 import shutil
 import sys
+import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import build_posts as B  # noqa: E402
@@ -46,7 +47,7 @@ PAGE = """<!DOCTYPE html>
 <ul class="favs" hidden id="wp-favs"><li>&#8203;</li></ul></div></aside>
 <main class="main"><div class="main-sec section" id="main">{main}</div></main></div>
 <footer class="foot"><span class="ru">© Веб-камеры планеты. Тексты — Википедия и Викигид (CC BY-SA), погода — Open-Meteo, карты — OpenStreetMap. Трансляции принадлежат их владельцам и встроены с их платформ.</span><span class="en">© Webcams of the Planet. Texts: Wikipedia and Wikivoyage (CC BY-SA), weather: Open-Meteo, maps: OpenStreetMap. Streams belong to their owners and are embedded from their platforms.</span></footer>
-<script>window.WP_CONFIG = {{ windyKey: '', static: true, base: '{p}' }};</script>
+<script>window.WP_CONFIG = {{ windyKey: '', static: true, base: '{p}', fv: '{fv}' }};</script>
 <script src="{p}assets/app.js?v={v}"></script>{counter}</body></html>"""
 # Счётчик посещений GoatCounter: без cookie, поэтому баннер согласия не нужен
 COUNTER = '\n<script data-goatcounter="https://{code}.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>'
@@ -93,9 +94,10 @@ def main():
     (out / "assets" / "app.js").write_text(js, encoding="utf-8")
     (out / "assets" / "style.css").write_text(css, encoding="utf-8")
     v = hashlib.md5((js + css).encode()).hexdigest()[:8]  # новая версия файлов — браузеры не берут старые из кэша
+    fv = time.strftime("%Y%m%d%H%M")  # версия сборки для лент: после обновления сайта списки камер не берутся из кэша
 
     def write(name, title, main, desc, url):
-        (out / name).write_text(PAGE.format(title=html.escape(title), desc=html.escape(desc), url=url, p=p, v=v,
+        (out / name).write_text(PAGE.format(title=html.escape(title), desc=html.escape(desc), url=url, p=p, v=v, fv=fv,
                                             menu=menu, main=main, counter=counter), encoding="utf-8")
 
     urls = [base]
