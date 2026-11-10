@@ -118,7 +118,8 @@
       approxMany: 'Ещё {n} камер без точных координат — в списке ниже ↓',
       k_all: 'Все', k_view: 'Общие виды', k_street: 'Улицы', k_indoor: 'Помещения',
       countryMap: 'Карта страны', countryMapNote: 'Крупные точки — города с веб-камерами, мелкие — остальные города. Нажмите на точку, чтобы открыть страницу города.',
-      street: 'Панорама улиц', streetNote: 'Google Street View с точки в центре города. Панораму можно поворачивать, а стрелками на дороге — идти по улицам.',
+      street: 'Панорама улиц', streetNote: 'Google Street View с точки в центре города. Панораму можно поворачивать, а стрелками на дороге — идти по улицам. Щелчок по мини-карте в углу переносит панораму в это место.',
+      streetMini: 'Нажмите на карту, чтобы перенести панораму сюда',
       searchHint: 'Введите в поиске слева хотя бы две буквы названия страны, города или камеры.',
       nothingFound: 'По запросу «{q}» ничего не найдено.'
     },
@@ -145,7 +146,8 @@
       approxMany: '{n} more webcams without exact coordinates — see the list below ↓',
       k_all: 'All', k_view: 'General views', k_street: 'Streets', k_indoor: 'Indoors',
       countryMap: 'Map of the country', countryMapNote: 'Large dots are cities with webcams, small dots are other cities. Click a dot to open the city page.',
-      street: 'Street View', streetNote: 'Google Street View from a point in the city centre. Turn around, and use the arrows on the road to walk the streets.',
+      street: 'Street View', streetNote: 'Google Street View from a point in the city centre. Turn around, and use the arrows on the road to walk the streets. Click the mini map in the corner to jump there.',
+      streetMini: 'Click the map to move the panorama here',
       searchHint: 'Type at least two letters of a country, city or webcam name in the search box on the left.',
       nothingFound: 'Nothing found for “{q}”.'
     }
@@ -736,11 +738,29 @@
       if (seen) frame.src = 'https://www.google.com/maps?layer=c&cbll=' + p[0] + ',' + p[1] + '&cbp=11,' + (p[2] || 0) + ',0,0,10&hl=' + lang + '&output=svembed';
     }
     langHooks.push(src);
+    var mini = h('div', { class: 'sv-mini', title: t('streetMini') });
     var det = h('details', { class: 'wp-map wp-sv' },
       h('summary', {}, h('span', { class: 'ic', html: ICON.map }), h('span', { 'data-i18n': 'street' }, t('street'))),
-      h('div', { class: 'sv' }, frame),
-      h('p', { class: 'srcnote map-note', 'data-i18n': 'streetNote' }, t('streetNote')));
-    det.addEventListener('toggle', function () { if (det.open && !seen) { seen = true; src(); } });
+      h('div', { class: 'sv' }, frame, mini),
+      h('p', { class: 'srcnote map-note', 'data-i18n': 'streetNote' }, t('streetNote')), mapCredit());
+    det.addEventListener('toggle', function () {
+      if (!det.open || seen) return;
+      seen = true;
+      src();
+      // Мини-карта в углу панорамы: где стоим; щелчок по ней переносит панораму в это место.
+      // Ходьбу внутри панорамы Google сайту не сообщает, поэтому метка двигается только по щелчкам на карте.
+      loadLeaflet().then(function () {
+        var m = L.map(mini, { zoomControl: false, attributionControl: false }).setView([p[0], p[1]], 15);
+        L.tileLayer(CFG.tiles, { maxZoom: 19 }).addTo(m);
+        var me = L.circleMarker([p[0], p[1]], { radius: 7, color: '#fff', weight: 2, fillColor: '#F2A93B', fillOpacity: 1 }).addTo(m);
+        m.on('click', function (e) {
+          p = [+e.latlng.lat.toFixed(6), +e.latlng.lng.toFixed(6), p[2] || 0];
+          me.setLatLng(e.latlng);
+          src();
+        });
+        setTimeout(function () { m.invalidateSize(); }, 60);
+      }).catch(function () { mini.remove(); });
+    });
     before.before(det);
   }
 
@@ -1258,10 +1278,11 @@
       descBlock(body, { qid: d.qid, wen: d.wen, gid: d.gid });
       var camsEl = $('.wp-cams', body);
       if (camsEl) camsEl.id = 'cams';  // сюда ведёт метка «ещё N камер» на карте
-      // панорама — перед заголовком «Веб-камеры»
-      streetBlock(camsEl && camsEl.previousElementSibling && camsEl.previousElementSibling.tagName === 'H2' ? camsEl.previousElementSibling : camsEl, lat, lon, d.sv);
+      // панорама и карта — над заголовком «Веб-камеры», заголовок стоит прямо над списком камер
+      var camsH = camsEl && camsEl.previousElementSibling && camsEl.previousElementSibling.tagName === 'H2' ? camsEl.previousElementSibling : camsEl;
+      streetBlock(camsH, lat, lon, d.sv);
       // data-n — камер в городе при сборке; без камер всё равно показываем карту города
-      if (camsEl && !isNaN(lat)) mapBlock(camsEl, +d.n ? 'mapCams' : 'mapCity', cityPoints(lat, lon), [lat, lon]);
+      if (camsH && !isNaN(lat)) mapBlock(camsH, +d.n ? 'mapCams' : 'mapCity', cityPoints(lat, lon), [lat, lon]);
       camsBlock($('.wp-cams', body), d.slug, lat, lon);
       itemTools('city');
     },
