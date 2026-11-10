@@ -11,6 +11,7 @@ import csv
 import io
 import json
 import pathlib
+import re
 import sys
 import time
 import urllib.parse
@@ -23,6 +24,20 @@ UA = "WebPlanetBuilder/0.1 (+https://webplanetcountry.blogspot.com/)"
 SPARQL = "https://query.wikidata.org/sparql"
 
 csv.field_size_limit(10_000_000)
+
+
+MUNI = re.compile(r"^(?:городской округ|городское поселение|сельское поселение)\s+(.+)$|^(.+?)\s+(?:городское|сельское) поселение$")
+
+
+def fix_ru(ru, wru=""):
+    """«Киришское городское поселение» → «Кириши», «городской округ Торжок» → «Торжок» (метки Викиданных
+    для муниципалитетов вместо названий городов)."""
+    m = MUNI.match(ru or "")
+    if not m:
+        return ru
+    if wru and not MUNI.match(wru):
+        return re.split(r",| \(", wru)[0].strip()
+    return m.group(1) or ru
 
 
 def tsv_rows(f):
@@ -256,7 +271,7 @@ def main():
         tz = tzs.get(c["tz"], {})
         out_ci.append({
             "gid": c["gid"], "cc": c["cc"], "qid": w.get("qid", ""),
-            "ru": w.get("ru") or a.get("ru") or "", "en": a.get("en") or c["name"], "ascii": c["ascii"],
+            "ru": fix_ru(w.get("ru") or a.get("ru") or "", a.get("wru", "")), "en": a.get("en") or c["name"], "ascii": c["ascii"],
             "lat": round(c["lat"], 5), "lon": round(c["lon"], 5), "pop": c["pop"], "fcode": c["fcode"],
             "tz": c["tz"], "gmt": tz.get("gmt"), "dst": tz.get("dst"),
             "region_en": reg["en"] if reg else "", "region_ru": ra.get("ru", ""),

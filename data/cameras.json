@@ -141696,5 +141696,33 @@
    }
   ],
   "found": "catalog kamonline 2026-11-10"
+ },
+ {
+  "city_gid": 548442,
+  "ru": "Площадь Бровко, центр Кириши (Кириши.ТВ)",
+  "en": "Brovko Square, Kirishi city centre (Kirishi.TV)",
+  "found": "manual kirishi 2026-11-10",
+  "sources": [
+   {
+    "type": "iframe",
+    "src": "https://vk.com/video_ext.php?oid=-131070527&id=456239104&hash=a5bf2e62d6aac73c&hd=2",
+    "by": "vk.com/kirishi_tv",
+    "q": "720p"
+   }
+  ]
+ },
+ {
+  "city_gid": 548442,
+  "ru": "«Додо Пицца», горячий цех, Кириши",
+  "en": "«Dodo Pizza», kitchen, Kirishi",
+  "found": "manual kirishi 2026-11-10",
+  "sources": [
+   {
+    "type": "iframe",
+    "src": "https://open.ivideon.com/embed/v3/?server=100-uQyPq7MzRlKoE2YEyLkuAE&camera=0&width=&height=&lang=ru",
+    "by": "ivideon.com",
+    "q": "720p"
+   }
+  ]
  }
 ]

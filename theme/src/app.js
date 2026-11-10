@@ -734,7 +734,7 @@
     var frame = h('iframe', { allowfullscreen: true, referrerpolicy: 'no-referrer-when-downgrade', title: t('street') });
     var box = h('div', { class: 'sv' }, frame), seen = false;
     function src() {
-      if (seen) frame.src = 'https://www.google.com/maps?layer=c&cbll=' + p[0] + ',' + p[1] + '&cbp=11,' + (p[2] || 0) + ',0,0,-10&hl=' + lang + '&output=svembed';
+      if (seen) frame.src = 'https://www.google.com/maps?layer=c&cbll=' + p[0] + ',' + p[1] + '&cbp=11,' + (p[2] || 0) + ',0,0,10&hl=' + lang + '&output=svembed';
     }
     function show() { if (!seen) { seen = true; src(); } }
     langHooks.push(src);
@@ -762,7 +762,7 @@
     if (!before) return;
     var box = h('div', { class: 'map-box' });
     var det = h('details', { class: 'wp-map' },
-      h('summary', {}, h('span', { class: 'ic', html: ICON.map }), h('span', { 'data-i18n': key }, t(key))), box);
+      h('summary', {}, h('span', { class: 'ic', html: ICON.map }), h('span', { 'data-i18n': key }, t(key))), box, mapCredit());
     before.before(det);
     var started = false;
     det.addEventListener('toggle', function () {
@@ -775,8 +775,8 @@
         if (!pts.length) { msg(h('p', { class: 'stub' }, t('mapEmpty'))); return; }
         box.classList.remove('msg');
         box.replaceChildren();
-        var map = L.map(box, { scrollWheelZoom: false, worldCopyJump: true });
-        L.tileLayer(CFG.tiles, { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
+        var map = L.map(box, { scrollWheelZoom: false, worldCopyJump: true, attributionControl: false });
+        L.tileLayer(CFG.tiles, { maxZoom: 19 }).addTo(map);
         var color = getComputedStyle(R).getPropertyValue('--pr').trim() || '#4353FF';
         pts.forEach(function (p) {
           L.circleMarker([p.lat, p.lon], {
@@ -796,6 +796,11 @@
       }).catch(function () { started = false; leafletP = null; msg(h('p', { class: 'stub' }, t('mapFail'))); });
     });
   }
+  // Источник карты — маленькой строкой под ней, а не поверх (лицензия OpenStreetMap требует его указать)
+  function mapCredit() {
+    return h('p', { class: 'srcnote map-credit' }, '© ',
+      h('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, 'OpenStreetMap'));
+  }
   // Карта страны: все её города. Города без камер скрыты в посте HTML-комментариями — читаем и их.
   // Leaflet грузится, когда карта показалась на экране; точки рисуются на canvas — их могут быть тысячи.
   function countryMap(before, ul, cc) {
@@ -812,7 +817,7 @@
     var box = h('div', { class: 'map-box country-map' });
     var det = h('details', { class: 'wp-map' },
       h('summary', {}, h('span', { class: 'ic', html: ICON.map }), h('span', { 'data-i18n': 'countryMap' }, t('countryMap'))),
-      box, h('p', { class: 'srcnote map-note', 'data-i18n': 'countryMapNote' }, t('countryMapNote')));
+      box, h('p', { class: 'srcnote map-note', 'data-i18n': 'countryMapNote' }, t('countryMapNote')), mapCredit());
     before.before(det);
     function draw() {
       loadLeaflet().then(function () {
@@ -822,8 +827,8 @@
           pts.forEach(function (p) { p.n = Math.max(p.n || 0, n[pathOf(p.href)] || 0); });
         }, function () {});
       }).then(function () {
-        var map = L.map(box, { scrollWheelZoom: false, preferCanvas: true, worldCopyJump: true });
-        L.tileLayer(CFG.tiles, { maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
+        var map = L.map(box, { scrollWheelZoom: false, preferCanvas: true, worldCopyJump: true, attributionControl: false });
+        L.tileLayer(CFG.tiles, { maxZoom: 19 }).addTo(map);
         var color = getComputedStyle(R).getPropertyValue('--pr').trim() || '#4353FF';
         var mu = getComputedStyle(R).getPropertyValue('--mu').trim() || '#5A6375';
         pts.sort(function (a, b) { return (a.n || 0) - (b.n || 0); }).forEach(function (p) {
