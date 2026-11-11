@@ -120,6 +120,9 @@
       countryMap: 'Карта страны', countryMapNote: 'Крупные точки — города с веб-камерами, мелкие — остальные города. Нажмите на точку, чтобы открыть страницу города.',
       street: 'Панорама улиц', streetNote: 'Google Street View с точки в центре города. Панораму можно поворачивать, а стрелками на дороге — идти по улицам. Щелчок по мини-карте в углу переносит панораму в это место.',
       streetMini: 'Нажмите на карту, чтобы перенести панораму сюда',
+      svNone: 'Здесь нет панорамы Google, выберите место ближе к дороге', svExpand: 'Развернуть карту', svCollapse: 'Свернуть карту',
+      svScheme: 'Схема', svSat: 'Спутник', svSatCredit: 'Спутник: Esri',
+      svOpen: 'Открыть панораму в:', svPhotos: 'Фото места:', googleMaps: 'Google Картах', yandexMaps: 'Яндекс Картах', google: 'Google', yandex: 'Яндекс',
       searchHint: 'Введите в поиске слева хотя бы две буквы названия страны, города или камеры.',
       nothingFound: 'По запросу «{q}» ничего не найдено.'
     },
@@ -148,6 +151,9 @@
       countryMap: 'Map of the country', countryMapNote: 'Large dots are cities with webcams, small dots are other cities. Click a dot to open the city page.',
       street: 'Street View', streetNote: 'Google Street View from a point in the city centre. Turn around, and use the arrows on the road to walk the streets. Click the mini map in the corner to jump there.',
       streetMini: 'Click the map to move the panorama here',
+      svNone: 'No Google imagery here, pick a spot closer to a road', svExpand: 'Expand map', svCollapse: 'Collapse map',
+      svScheme: 'Map', svSat: 'Satellite', svSatCredit: 'Satellite: Esri',
+      svOpen: 'Open the panorama in:', svPhotos: 'Photos of the place:', googleMaps: 'Google Maps', yandexMaps: 'Yandex Maps', google: 'Google', yandex: 'Yandex',
       searchHint: 'Type at least two letters of a country, city or webcam name in the search box on the left.',
       nothingFound: 'Nothing found for “{q}”.'
     }
@@ -725,41 +731,184 @@
   }
 
   // ---------- панорама улиц (Google Street View) ----------
-  // Открывается с точки в центре города: data-sv="широта,долгота,направление" (точки из data/streetview.json),
-  // иначе — координаты города. Встраивание без ключа. Под спойлером: панорама грузится только при открытии.
+  // Открывается с точки в центре города: data-sv="широта,долгота,направление" (точки из data/streetview.json
+  // и data/streetview_fix.json), иначе — координаты города. Под спойлером: грузится только при открытии.
+  // С ключом (CFG.gmapsKey) — Maps JavaScript API: только съёмка Google (без фото туристов), мини-карта
+  // следует за вами. Без ключа, при ошибке ключа или исчерпанном дневном лимите — встраивание без ключа.
+  var gmapsP = null;
+  function loadGmaps() {
+    if (window.google && google.maps && google.maps.StreetViewPanorama) return Promise.resolve();
+    if (!gmapsP) gmapsP = new Promise(function (res, rej) {
+      window.__wpGmaps = res;
+      loadScript('https://maps.googleapis.com/maps/api/js?key=' + enc(CFG.gmapsKey) + '&v=weekly&language=' + lang +
+        '&callback=__wpGmaps').catch(rej);
+      setTimeout(function () { rej(new Error('Google Maps timeout')); }, 15000);
+    }).catch(function (e) { gmapsP = null; throw e; });
+    return gmapsP;
+  }
+  var gmFailHooks = [];
+  // Google вызывает эту функцию, если ключ не принят (неверный, чужой адрес сайта, отключён)
+  window.gm_authFailure = function () { gmFailHooks.splice(0).forEach(function (f) { f(); }); };
+
   function streetBlock(before, lat, lon, sv) {
     if (!before || isNaN(lat)) return;
     var p = String(sv || '').split(',').map(Number);
     if (p.length < 2 || isNaN(p[0])) p = [lat, lon, 0];
-    var frame = h('iframe', { allowfullscreen: true, referrerpolicy: 'no-referrer-when-downgrade', title: t('street') });
-    var seen = false;
-    function src() {
+    var stage = h('div', { class: 'sv-stage' });
+    var seen = false, mode = null, pano = null, frame = null;
+    var onMove = function () {};  // обновляет мини-карту, когда панорама сменила место
+
+    // --- без ключа: iframe; о ходьбе внутри него Google не сообщает ---
+    function frameSrc() {
       // наклон 10 — взгляд чуть вниз, на дорогу: стрелки перехода видны посередине
-      if (seen) frame.src = 'https://www.google.com/maps?layer=c&cbll=' + p[0] + ',' + p[1] + '&cbp=11,' + (p[2] || 0) + ',0,0,10&hl=' + lang + '&output=svembed';
+      if (frame) frame.src = 'https://www.google.com/maps?layer=c&cbll=' + p[0] + ',' + p[1] + '&cbp=11,' + (p[2] || 0) + ',0,0,10&hl=' + lang + '&output=svembed';
     }
-    langHooks.push(src);
+    function useFrame() {
+      if (mode === 'frame') return;
+      mode = 'frame';
+      pano = null;
+      frame = h('iframe', { allowfullscreen: true, referrerpolicy: 'no-referrer-when-downgrade', title: t('street') });
+      stage.replaceChildren(frame);
+      frameSrc();
+      det.classList.remove('sv-api');
+    }
+
+    // --- с ключом: панорама Google Maps JavaScript API ---
+    function nearest(ll) {
+      return new google.maps.StreetViewService().getPanorama({
+        location: ll, radius: 250, preference: google.maps.StreetViewPreference.NEAREST,
+        sources: [google.maps.StreetViewSource.GOOGLE]  // только съёмка Google, без фото пользователей
+      }).then(function (r) { return r.data.location; });
+    }
+    function useApi() {
+      var done = false;
+      function fail() { if (!done) { done = true; useFrame(); } }
+      gmFailHooks.push(function () { done = false; fail(); });  // ключ не принят — даже после удачного старта
+      return loadGmaps().then(function () {
+        return nearest({ lat: p[0], lng: p[1] });
+      }).then(function (loc) {
+        if (done) return;
+        mode = 'api';
+        var box = h('div', { class: 'sv-api-box' });
+        stage.replaceChildren(box);
+        pano = new google.maps.StreetViewPanorama(box, {
+          pano: loc.pano, pov: { heading: p[2] || 0, pitch: 0 }, zoom: 0,
+          addressControl: true, fullscreenControl: true, motionTracking: false, motionTrackingControl: false,
+          showRoadLabels: true, zoomControlOptions: { position: google.maps.ControlPosition.RIGHT_CENTER }
+        });
+        det.classList.add('sv-api');
+        // Google рисует своё окно «Ошибка» при неверном ключе и при исчерпанном лимите — ловим его
+        var watch = new MutationObserver(function () {
+          if (box.querySelector('.gm-err-container, .gm-err-content')) { watch.disconnect(); done = false; fail(); }
+        });
+        watch.observe(box, { childList: true, subtree: true });
+        setTimeout(function () { watch.disconnect(); }, 30000);
+        // нет картинки за 12 секунд (лимит исчерпан, сеть) — переходим на версию без ключа
+        var tm = setTimeout(function () { if (!pano || pano.getStatus() !== 'OK') fail(); }, 12000);
+        pano.addListener('status_changed', function () {
+          var s = pano.getStatus();
+          if (s === 'OK') { clearTimeout(tm); done = true; } else if (s) { clearTimeout(tm); fail(); }
+        });
+        pano.addListener('position_changed', function () {
+          var ll = pano.getPosition();
+          if (!ll) return;
+          p = [+ll.lat().toFixed(6), +ll.lng().toFixed(6), Math.round(pano.getPov().heading) || 0];
+          links();
+          onMove(true);
+        });
+        pano.addListener('pov_changed', function () { p[2] = Math.round(pano.getPov().heading) || 0; links(); onMove(false); });
+      }).catch(fail);
+    }
+
+    // Перейти в точку (щелчок по мини-карте)
+    function goTo(la, lo) {
+      if (mode === 'api' && pano) {
+        nearest({ lat: la, lng: lo }).then(function (loc) { pano.setPano(loc.pano); })
+          .catch(function () { toast(t('svNone')); });
+      } else {
+        p = [+la.toFixed(6), +lo.toFixed(6), p[2] || 0];
+        frameSrc();
+        links();
+        onMove(true);
+      }
+    }
+
+    // Ссылки на полные карты с той же точки: там вся панорама с мини-картой и фото места
+    function ext(key) { return h('a', { target: '_blank', rel: 'noopener', 'data-i18n': key }, t(key)); }
+    var aG = ext('googleMaps'), aY = ext('yandexMaps'), fG = ext('google'), fY = ext('yandex');
+    function links() {
+      var ll = p[0] + ',' + p[1], yl = p[1] + '%2C' + p[0];
+      aG.href = 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + ll + '&heading=' + (p[2] || 0) + '&pitch=-10';
+      aY.href = 'https://yandex.ru/maps/?l=stv%2Csta&ll=' + yl + '&z=17&panorama%5Bpoint%5D=' + yl + '&panorama%5Bdirection%5D=' + (p[2] || 0) + '%2C0';
+      fG.href = 'https://www.google.com/maps/search/?api=1&query=' + ll;
+      fY.href = 'https://yandex.ru/maps/?ll=' + yl + '&z=17&whatshere%5Bpoint%5D=' + yl + '&whatshere%5Bzoom%5D=17';
+    }
+    links();
+    langHooks.push(function () { if (mode === 'frame') frameSrc(); });
+
+    // --- мини-карта: где стоим и куда смотрим; щелчок переносит панораму; можно развернуть ---
     var mini = h('div', { class: 'sv-mini', title: t('streetMini') });
+    var expand = h('button', { type: 'button', class: 'sv-btn sv-expand', 'aria-label': t('svExpand'), title: t('svExpand'), html: '&#x2922;' });
+    var layerBtns = h('div', { class: 'sv-layers' });
+    var miniWrap = h('div', { class: 'sv-mini-wrap' }, mini, expand, layerBtns);
+
     var det = h('details', { class: 'wp-map wp-sv' },
       h('summary', {}, h('span', { class: 'ic', html: ICON.map }), h('span', { 'data-i18n': 'street' }, t('street'))),
-      h('div', { class: 'sv' }, frame, mini),
-      h('p', { class: 'srcnote map-note', 'data-i18n': 'streetNote' }, t('streetNote')), mapCredit());
+      h('div', { class: 'sv' }, stage, miniWrap),
+      h('p', { class: 'srcnote map-note', 'data-i18n': 'streetNote' }, t('streetNote')),
+      h('p', { class: 'srcnote map-note sv-links' }, h('span', { 'data-i18n': 'svOpen' }, t('svOpen')), ' ', aG, ' · ', aY,
+        h('span', { class: 'sep' }, ' | '), h('span', { 'data-i18n': 'svPhotos' }, t('svPhotos')), ' ', fG, ' · ', fY),
+      h('p', { class: 'srcnote map-credit' }, '© ',
+        h('a', { href: 'https://www.openstreetmap.org/copyright', target: '_blank', rel: 'noopener' }, 'OpenStreetMap'),
+        ' · ', h('span', { 'data-i18n': 'svSatCredit' }, t('svSatCredit'))));
+
     det.addEventListener('toggle', function () {
       if (!det.open || seen) return;
       seen = true;
-      src();
-      // Мини-карта в углу панорамы: где стоим; щелчок по ней переносит панораму в это место.
-      // Ходьбу внутри панорамы Google сайту не сообщает, поэтому метка двигается только по щелчкам на карте.
+      if (CFG.gmapsKey) useApi(); else useFrame();
       loadLeaflet().then(function () {
-        var m = L.map(mini, { zoomControl: false, attributionControl: false }).setView([p[0], p[1]], 15);
-        L.tileLayer(CFG.tiles, { maxZoom: 19 }).addTo(m);
-        var me = L.circleMarker([p[0], p[1]], { radius: 7, color: '#fff', weight: 2, fillColor: '#F2A93B', fillOpacity: 1 }).addTo(m);
-        m.on('click', function (e) {
-          p = [+e.latlng.lat.toFixed(6), +e.latlng.lng.toFixed(6), p[2] || 0];
-          me.setLatLng(e.latlng);
-          src();
+        var m = L.map(mini, { zoomControl: false, attributionControl: false }).setView([p[0], p[1]], 16);
+        var layers = {
+          map: L.tileLayer(CFG.tiles, { maxZoom: 19 }),
+          sat: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
+        };
+        var cur = 'map';
+        layers.map.addTo(m);
+        ['map', 'sat'].forEach(function (k) {
+          var b = h('button', { type: 'button', class: 'sv-btn' + (k === cur ? ' on' : ''), 'data-i18n': k === 'map' ? 'svScheme' : 'svSat' },
+            t(k === 'map' ? 'svScheme' : 'svSat'));
+          b.addEventListener('click', function () {
+            if (k === cur) return;
+            m.removeLayer(layers[cur]); layers[k].addTo(m); cur = k;
+            $$('.sv-btn', layerBtns).forEach(function (x) { x.classList.toggle('on', x === b); });
+          });
+          layerBtns.append(b);
         });
+        // метка-стрелка: смотрит туда же, куда панорама
+        var icon = L.divIcon({ className: 'sv-me', html: '<i></i>', iconSize: [26, 26], iconAnchor: [13, 13] });
+        var me = L.marker([p[0], p[1]], { icon: icon, interactive: false, keyboard: false }).addTo(m);
+        onMove = function (moved) {
+          me.setLatLng([p[0], p[1]]);
+          var el = me.getElement();
+          if (el) el.firstChild.style.transform = 'rotate(' + (p[2] || 0) + 'deg)';
+          if (moved && !m.getBounds().pad(-0.2).contains([p[0], p[1]])) m.panTo([p[0], p[1]]);
+        };
+        onMove(false);
+        m.on('click', function (e) { goTo(e.latlng.lat, e.latlng.lng); });
         setTimeout(function () { m.invalidateSize(); }, 60);
-      }).catch(function () { mini.remove(); });
+        function resized() { m.invalidateSize({ pan: false }); m.panTo([p[0], p[1]], { animate: false }); }
+        miniWrap.addEventListener('transitionend', resized);
+        expand.addEventListener('click', function () {
+          var open = miniWrap.classList.toggle('open');
+          expand.innerHTML = open ? '&#x2921;' : '&#x2922;';
+          expand.title = t(open ? 'svCollapse' : 'svExpand');
+          setTimeout(resized, 250);
+        });
+        // на телефоне наведения нет: первое касание увеличивает карту, следующее переносит панораму
+        mini.addEventListener('touchstart', function (e) {
+          if (!miniWrap.classList.contains('big') && !miniWrap.classList.contains('open')) { miniWrap.classList.add('big'); e.preventDefault(); }
+        }, { passive: false });
+      }).catch(function () { miniWrap.remove(); });
     });
     before.before(det);
   }

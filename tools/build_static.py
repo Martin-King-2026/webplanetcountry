@@ -47,7 +47,7 @@ PAGE = """<!DOCTYPE html>
 <ul class="favs" hidden id="wp-favs"><li>&#8203;</li></ul></div></aside>
 <main class="main"><div class="main-sec section" id="main">{main}</div></main></div>
 <footer class="foot"><span class="ru">© Веб-камеры планеты. Тексты — Википедия и Викигид (CC BY-SA), погода — Open-Meteo, карты — OpenStreetMap. Трансляции принадлежат их владельцам и встроены с их платформ.</span><span class="en">© Webcams of the Planet. Texts: Wikipedia and Wikivoyage (CC BY-SA), weather: Open-Meteo, maps: OpenStreetMap. Streams belong to their owners and are embedded from their platforms.</span></footer>
-<script>window.WP_CONFIG = {{ windyKey: '', static: true, base: '{p}', fv: '{fv}' }};</script>
+<script>window.WP_CONFIG = {{ windyKey: '', static: true, base: '{p}', fv: '{fv}', gmapsKey: '{gkey}' }};</script>
 <script src="{p}assets/app.js?v={v}"></script>{counter}</body></html>"""
 # Счётчик посещений GoatCounter: без cookie, поэтому баннер согласия не нужен
 COUNTER = '\n<script data-goatcounter="https://{code}.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>'
@@ -74,7 +74,16 @@ def main():
     ap.add_argument("--site-url", default="", help="полный адрес сайта для карты сайта, например https://логин.github.io/")
     ap.add_argument("--goatcounter", default=os.environ.get("GOATCOUNTER_CODE", ""),
                     help="код сайта в GoatCounter (код.goatcounter.com) — включает счётчик посещений")
+    ap.add_argument("--gmaps-key", default=os.environ.get("GMAPS_KEY", ""),
+                    help="ключ Google Maps JavaScript API для панорамы с мини-картой (иначе data/gmaps_key.txt)")
     args = ap.parse_args()
+    # Ключ виден в коде страницы — так устроены все ключи Maps JavaScript API; защищает его ограничение
+    # по адресу сайта в Google Cloud. Локально берётся из data/gmaps_key.txt (на GitHub этот файл не выгружается).
+    gkey = args.gmaps_key.strip()
+    key_file = ROOT / "data" / "gmaps_key.txt"
+    if not gkey and key_file.exists():
+        gkey = key_file.read_text(encoding="utf-8").strip()
+    gkey = gkey if re.fullmatch(r"[\w-]{20,60}", gkey) else ""
     code = args.goatcounter.strip().lower()
     counter = COUNTER.format(code=code) if re.fullmatch(r"[a-z0-9-]+", code) else ""
     p = args.prefix if args.prefix.endswith("/") else args.prefix + "/"
@@ -97,7 +106,7 @@ def main():
     fv = time.strftime("%Y%m%d%H%M")  # версия сборки для лент: после обновления сайта списки камер не берутся из кэша
 
     def write(name, title, main, desc, url):
-        (out / name).write_text(PAGE.format(title=html.escape(title), desc=html.escape(desc), url=url, p=p, v=v, fv=fv,
+        (out / name).write_text(PAGE.format(title=html.escape(title), desc=html.escape(desc), url=url, p=p, v=v, fv=fv, gkey=gkey,
                                             menu=menu, main=main, counter=counter), encoding="utf-8")
 
     urls = [base]
